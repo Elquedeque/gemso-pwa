@@ -175,7 +175,7 @@ const verDetalleAviso = (aviso) => {
 };
 
 const crearAviso = () => {
-  router.push('/crear-anuncio');
+  router.push('/crear-aviso');
 };
 
 onMounted(() => {

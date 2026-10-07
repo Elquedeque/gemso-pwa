@@ -7,6 +7,7 @@ import PerfilView from '../views/PerfilView.vue';
 import AjustesView from '../views/AjustesView.vue';
 import AyudaView from '../views/AyudaView.vue';
 import ContactoView from '../views/ContactoView.vue';
+import CrearAvisoView from '../views/CrearAvisoView.vue';
 
 const routes = [
   {
@@ -89,6 +90,11 @@ const routes = [
   path: '/contacto',
   name: 'contacto',
   component: ContactoView
+  },
+  {
+  path: '/crear-aviso',
+  name: 'crear-aviso',
+  component: CrearAvisoView
   }
 ];
 
