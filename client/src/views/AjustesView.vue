@@ -171,6 +171,8 @@ const guardarAjustes = () => {
   display: flex;
   flex-direction: column;
   padding-right: 1.25rem;
+  flex: 1; /* Permite que tome el espacio disponible restante */
+  min-width: 0;
 }
 
 .option-text label {
@@ -190,9 +192,13 @@ const guardarAjustes = () => {
   color: var(--brand-primary, #000080);
 }
 
+/* Fix para mantener el tamaño constante del Checkbox */
 .toggle-switch {
-  width: 42px;
+  width: 22px;
   height: 22px;
+  min-width: 22px;
+  min-height: 22px;
+  flex-shrink: 0; /* Evita compresión por Flexbox */
   accent-color: var(--brand-primary, #000080);
   cursor: pointer;
 }

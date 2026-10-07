@@ -6,6 +6,7 @@ import DocumentosView from '../views/DocumentosView.vue';
 import PerfilView from '../views/PerfilView.vue';
 import AjustesView from '../views/AjustesView.vue';
 import AyudaView from '../views/AyudaView.vue';
+import ContactoView from '../views/ContactoView.vue';
 
 const routes = [
   {
@@ -83,6 +84,11 @@ const routes = [
   path: '/ayuda',
   name: 'ayuda',
   component: AyudaView
+  },
+  {
+  path: '/contacto',
+  name: 'contacto',
+  component: ContactoView
   }
 ];
 
