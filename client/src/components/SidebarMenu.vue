@@ -118,7 +118,7 @@ const menuPrincipal = [
   { label: 'Documentos', ruta: '/documentos', iconPath: 'M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm0 12H4V8h16v10z' },
   { 
     label: 'Solicitud T&C', 
-    ruta: 'https://www.google.com', // URL del sitio web
+    ruta: 'https://forms.monday.com/forms/aaaf13caa73996a8e470337a998be917?r=use1', // URL del sitio web
     iconPath: 'M3.5 18.5a2.5 2.5 0 0 1-1.77-4.27l7-7a2.5 2.5 0 0 1 3.54 3.54l-7 7A2.48 2.48 0 0 1 3.5 18.5zm6.5 0a2.5 2.5 0 0 1-1.77-4.27l7-7a2.5 2.5 0 0 1 3.54 3.54l-7 7A2.48 2.48 0 0 1 10 18.5zm10.5-1A2.5 2.5 0 1 1 18 15a2.5 2.5 0 0 1 2.5 2.5z',
     esExterno: true 
   },

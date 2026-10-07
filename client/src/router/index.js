@@ -3,6 +3,9 @@ import LoginView from '../views/LoginView.vue';
 import AnunciosView from '../views/AnunciosView.vue';
 import MisAnunciosView from '../views/MisAnunciosView.vue';
 import DocumentosView from '../views/DocumentosView.vue';
+import PerfilView from '../views/PerfilView.vue';
+import AjustesView from '../views/AjustesView.vue';
+import AyudaView from '../views/AyudaView.vue';
 
 const routes = [
   {
@@ -65,6 +68,21 @@ const routes = [
   path: '/documentos',
   name: 'documentos',
   component: DocumentosView
+  },
+  {
+  path: '/perfil',
+  name: 'perfil',
+  component: PerfilView
+  },
+  {
+  path: '/ajustes',
+  name: 'ajustes',
+  component: AjustesView
+  },
+  {
+  path: '/ayuda',
+  name: 'ayuda',
+  component: AyudaView
   }
 ];
 
