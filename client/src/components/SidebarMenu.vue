@@ -9,18 +9,19 @@
 
       <!-- Navegación Principal -->
       <nav class="nav-section">
-        <button 
+        <router-link 
           v-for="item in menuPrincipal" 
-          :key="item.ruta"
+          :key="item.label"
+          :to="item.ruta"
           class="nav-item"
           :class="{ active: rutaActual === item.ruta }"
-          @click="navegar(item.ruta)"
+          @click="alNavegar"
         >
           <svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor">
             <path :d="item.iconPath" />
           </svg>
           <span>{{ item.label }}</span>
-        </button>
+        </router-link>
       </nav>
 
       <hr class="nav-divider" />
@@ -28,17 +29,19 @@
       <!-- Sección Configuración -->
       <div class="section-label">Configuración</div>
       <nav class="nav-section">
-        <button 
+        <router-link 
           v-for="item in menuConfiguracion" 
-          :key="item.ruta"
+          :key="item.label"
+          :to="item.ruta"
           class="nav-item"
-          @click="navegar(item.ruta)"
+          :class="{ active: rutaActual === item.ruta }"
+          @click="alNavegar"
         >
           <svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor">
             <path :d="item.iconPath" />
           </svg>
           <span>{{ item.label }}</span>
-        </button>
+        </router-link>
       </nav>
 
       <hr class="nav-divider" />
@@ -46,17 +49,19 @@
       <!-- Sección Acciones -->
       <div class="section-label">Acciones</div>
       <nav class="nav-section">
-        <button 
+        <router-link 
           v-for="item in menuAcciones" 
-          :key="item.ruta"
+          :key="item.label"
+          :to="item.ruta"
           class="nav-item"
-          @click="navegar(item.ruta)"
+          :class="{ active: rutaActual === item.ruta }"
+          @click="alNavegar"
         >
           <svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor">
             <path :d="item.iconPath" />
           </svg>
           <span>{{ item.label }}</span>
-        </button>
+        </router-link>
       </nav>
 
       <!-- Botón Cerrar Sesión en la parte inferior -->
@@ -76,7 +81,6 @@
 import { computed } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 
-// 1. Recibir la propiedad 'isOpen' desde AnunciosView.vue
 const props = defineProps({
   isOpen: {
     type: Boolean,
@@ -84,7 +88,6 @@ const props = defineProps({
   }
 });
 
-// 2. Definir eventos para avisar cuando se debe cerrar
 const emit = defineEmits(['close']);
 
 const router = useRouter();
@@ -92,7 +95,6 @@ const route = useRoute();
 
 const rutaActual = computed(() => route.path);
 
-// Definición de las opciones de menú con sus SVG Path integrados
 const menuPrincipal = [
   { label: 'Inicio', ruta: '/anuncios', iconPath: 'M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z' },
   { label: 'Mis Avisos', ruta: '/anuncios', iconPath: 'M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H5.17L4 17.17V4h16v12z' },
@@ -111,33 +113,27 @@ const menuAcciones = [
   { label: 'Contacto', ruta: '/contacto', iconPath: 'M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z' }
 ];
 
-const navegar = (ruta) => {
-  emit('close');
-  router.push(ruta);
+const alNavegar = () => {
+  setTimeout(() => {
+    emit('close');
+  }, 50);
 };
 
 const cerrarSesion = () => {
   emit('close');
-
-  // Limpiar credenciales y sesión
-  localStorage.removeItem('usuario');
-  localStorage.removeItem('sesion');
   localStorage.clear();
-
-  // Redirigir a la ruta raíz '/' o usando el nombre de la ruta
-  router.replace({ name: 'Login' }); 
+  router.replace('/'); 
 };
 </script>
 
 <style scoped>
-/* Tu mismo CSS existente */
 .sidebar-overlay {
   position: fixed;
   top: 0;
   left: 0;
   width: 100vw;
   height: 100vh;
-  background: rgba(0, 0, 0, 0.6);
+  background: rgba(15, 23, 42, 0.4);
   backdrop-filter: blur(4px);
   z-index: 999;
   opacity: 0;
@@ -156,15 +152,16 @@ const cerrarSesion = () => {
   left: 0;
   width: 280px;
   height: 100%;
-  background-color: #030712;
-  border-right: 1px solid #1f2937;
+  background-color: var(--bg-surface, #ffffff);
+  border-right: 1px solid var(--border-color, #e2e8f0);
   padding: 1.25rem 1rem;
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
   transform: translateX(-100%);
-  transition: transform 0.3s ease;
+  transition: transform 0.3s ease, background-color 0.3s ease;
   overflow-y: auto;
+  box-shadow: 4px 0 24px rgba(0, 0, 0, 0.08);
 }
 
 .sidebar-overlay.open .sidebar-container {
@@ -176,20 +173,30 @@ const cerrarSesion = () => {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 1.25rem;
+  padding-bottom: 0.5rem;
 }
 
 .brand-title {
-  color: #38bdf8;
+  color: var(--brand-primary, #000080);
   font-weight: 700;
-  font-size: 1.1rem;
+  font-size: 1.15rem;
+  letter-spacing: -0.3px;
 }
 
 .close-btn {
   background: transparent;
   border: none;
-  color: #94a3b8;
-  font-size: 1.2rem;
+  color: var(--text-secondary, #64748b);
+  font-size: 1.25rem;
   cursor: pointer;
+  padding: 0.2rem 0.5rem;
+  border-radius: 6px;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.close-btn:hover {
+  background-color: var(--bg-primary, #f1f5f9);
+  color: var(--text-primary, #0f172a);
 }
 
 .nav-section {
@@ -204,29 +211,38 @@ const cerrarSesion = () => {
   gap: 0.85rem;
   background: transparent;
   border: none;
-  color: #f8fafc;
+  color: var(--text-primary, #0f172a);
   padding: 0.75rem 0.85rem;
   border-radius: 10px;
   font-size: 0.95rem;
   font-weight: 500;
   cursor: pointer;
   text-align: left;
-  transition: background 0.2s ease;
+  text-decoration: none;
+  transition: all 0.2s ease;
 }
 
 .nav-item:hover {
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--bg-primary, #f1f5f9);
+  color: var(--brand-accent, #0284c7);
 }
 
 .nav-item.active {
-  background: #000080;
+  background: var(--brand-primary, #000080);
   color: #ffffff;
+  font-weight: 600;
+  box-shadow: 0 2px 6px rgba(0, 0, 128, 0.2);
 }
 
 .nav-icon {
   width: 20px;
   height: 20px;
-  color: #38bdf8;
+  color: var(--brand-accent, #0284c7);
+  transition: color 0.2s ease;
+}
+
+.nav-item:hover .nav-icon {
+  color: var(--brand-accent, #0284c7);
 }
 
 .nav-item.active .nav-icon {
@@ -234,42 +250,50 @@ const cerrarSesion = () => {
 }
 
 .section-label {
-  color: #94a3b8;
-  font-size: 0.8rem;
-  font-weight: 600;
-  margin: 0.75rem 0 0.4rem 0.5rem;
+  color: var(--text-secondary, #64748b);
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin: 0.85rem 0 0.4rem 0.5rem;
 }
 
 .nav-divider {
   border: none;
-  border-top: 1px solid #1f2937;
-  margin: 0.85rem 0;
+  border-top: 1px solid var(--border-color, #e2e8f0);
+  margin: 0.75rem 0;
 }
 
 .sidebar-footer {
   margin-top: auto;
-  padding-top: 1rem;
+  padding-top: 1.25rem;
 }
 
 .logout-btn {
   width: 100%;
-  background: #a51d24;
+  background: #dc2626;
   color: #ffffff;
   border: none;
-  border-radius: 25px;
-  padding: 0.8rem;
+  border-radius: 10px;
+  padding: 0.75rem;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 0.6rem;
   font-weight: 600;
-  font-size: 0.95rem;
+  font-size: 0.9rem;
   cursor: pointer;
-  box-shadow: 0 4px 12px rgba(165, 29, 36, 0.3);
+  box-shadow: 0 2px 8px rgba(220, 38, 38, 0.2);
+  transition: background-color 0.2s ease, transform 0.1s ease;
+}
+
+.logout-btn:hover {
+  background: #b91c1c;
+  transform: translateY(-1px);
 }
 
 .logout-icon {
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
 }
 </style>

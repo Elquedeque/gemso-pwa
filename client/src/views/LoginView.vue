@@ -112,53 +112,61 @@ const goRegister = () => {
 </script>
 
 <style scoped>
+/* Contenedor Principal ocupando toda la pantalla */
 .login-container {
-  height: 100vh;
+  min-height: 100vh;
   width: 100vw;
   display: flex;
   justify-content: center;
   align-items: center;
-  background: linear-gradient(180deg, #ffffff 0%, #e2e8f0 100%);
+  background-color: var(--bg-primary);
   padding: 1.5rem;
   box-sizing: border-box;
-  overflow: hidden; /* Evita que aparezca la barra de desplazamiento */
 }
 
+/* Tarjeta del Formulario */
 .login-card {
   width: 100%;
-  max-width: 360px;
+  max-width: 400px;
+  background-color: var(--bg-surface, #ffffff);
+  border: 1px solid var(--border-color, #e2e8f0);
+  border-radius: 20px;
+  padding: 2.5rem 2rem;
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
   align-items: center;
   text-align: center;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.08), 0 8px 10px -6px rgba(0, 0, 0, 0.04);
 }
 
 /* Imagen del Logo */
 .logo-container {
-  margin-bottom: 0.5rem;
+  margin-bottom: 1rem;
   display: flex;
   justify-content: center;
 }
 
 .gemso-logo-img {
-  width: 220px;
+  width: 190px;
   height: auto;
   object-fit: contain;
 }
 
-/* Títulos */
+/* Encabezados y Títulos */
 .welcome-title {
-  font-size: 2.2rem;
-  font-weight: 500;
-  color: #000000;
-  margin: 0.5rem 0 0.25rem 0;
+  font-size: 1.8rem;
+  font-weight: 700;
+  color: var(--text-primary, #0f172a);
+  margin: 0.25rem 0;
+  letter-spacing: -0.5px;
 }
 
 .subtitle {
-  font-size: 1.1rem;
-  color: #1e293b;
-  margin: 0 0 2rem 0;
-  line-height: 1.3;
+  font-size: 0.95rem;
+  color: var(--text-secondary, #64748b);
+  margin: 0 0 1.75rem 0;
+  line-height: 1.4;
 }
 
 /* Formulario */
@@ -169,85 +177,104 @@ const goRegister = () => {
 }
 
 .input-group {
-  margin-bottom: 1.25rem;
+  margin-bottom: 1rem;
 }
 
 .custom-input {
   width: 100%;
-  padding: 0.85rem 1.2rem;
-  font-size: 1.1rem;
-  border: 1.5px solid #03256c;
-  border-radius: 18px;
+  padding: 0.85rem 1.1rem;
+  font-size: 0.95rem;
+  border: 1.5px solid var(--border-color, #cbd5e1);
+  border-radius: 12px;
   outline: none;
   box-sizing: border-box;
-  color: #1e293b;
-  background-color: #ffffff;
+  color: var(--text-primary, #0f172a);
+  background-color: var(--bg-surface);
+  color: var(--text-primary);
 }
 
 .custom-input::placeholder {
-  color: #8b9bb4;
+  color: #94a3b8;
 }
 
 .custom-input:focus {
-  border-color: #001242;
-  box-shadow: 0 0 0 2px rgba(3, 37, 108, 0.15);
+  border-color: var(--brand-accent, #0284c7);
+  box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.15);
 }
 
-/* Enlace olvido */
+/* Enlace de recuperación */
 .forgot-container {
   text-align: right;
   margin-top: -0.25rem;
-  margin-bottom: 2rem;
+  margin-bottom: 1.5rem;
 }
 
 .forgot-link {
-  color: #03256c;
-  font-size: 0.95rem;
+  color: var(--brand-accent, #0284c7);
+  font-size: 0.85rem;
   font-weight: 600;
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+.forgot-link:hover {
+  color: var(--brand-primary, #000080);
   text-decoration: underline;
+}
+
+/* Mensaje de Error */
+.error-msg {
+  color: #dc2626;
+  font-size: 0.85rem;
+  background-color: #fef2f2;
+  border: 1px solid #fecaca;
+  padding: 0.6rem;
+  border-radius: 8px;
+  margin-bottom: 1.25rem;
 }
 
 /* Botones */
 .button-group {
   display: flex;
   flex-direction: column;
-  gap: 1.25rem;
+  gap: 0.75rem;
 }
 
 .btn {
   width: 100%;
   padding: 0.85rem;
-  font-size: 1.1rem;
+  font-size: 0.95rem;
   font-weight: 600;
-  border-radius: 25px;
+  border-radius: 12px;
   cursor: pointer;
   transition: all 0.2s ease;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.15);
 }
 
 .btn-primary {
-  background-color: #000080;
+  background-color: var(--brand-primary, #000080);
   color: #ffffff;
   border: none;
+  box-shadow: 0 4px 12px rgba(0, 0, 128, 0.25);
 }
 
-.btn-primary:hover {
+.btn-primary:hover:not(:disabled) {
   background-color: #000066;
+  transform: translateY(-1px);
+}
+
+.btn-primary:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
 }
 
 .btn-secondary {
-  background-color: #ffffff;
-  color: #000080;
-  border: 1.5px solid #cbd5e1;
+  background-color: transparent;
+  color: var(--text-secondary, #475569);
+  border: 1.5px solid var(--border-color, #cbd5e1);
 }
 
 .btn-secondary:hover {
-  background-color: #f8fafc;
-}
-
-.error-msg {
-  color: #dc2626;
-  font-size: 0.9rem;
-  margin-bottom: 1rem;
+  background-color: var(--bg-primary, #f1f5f9);
+  color: var(--text-primary, #0f172a);
 }
 </style>

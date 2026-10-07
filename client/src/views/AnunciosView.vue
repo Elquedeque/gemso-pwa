@@ -133,7 +133,7 @@
 <script setup>
 import { ref, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
-import SidebarMenu from './SidebarMenu.vue';
+import SidebarMenu from '../components/SidebarMenu.vue';
 
 const router = useRouter();
 const usuarioNombre = ref('Usuario');
@@ -223,51 +223,61 @@ const toggleFullscreen = () => {
 </script>
 
 <style scoped>
+/* Contenedor principal de la vista */
 .dashboard-container {
   min-height: 100vh;
-  width: 100vw;
+  width: 100%;
   display: flex;
   flex-direction: column;
-  background-color: #0b1120;
-  color: #ffffff;
+  background-color: var(--bg-primary, #f1f5f9);
+  color: var(--text-primary, #0f172a);
   box-sizing: border-box;
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
+/* Header Institucional */
 .dashboard-header {
   width: 100%;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 1rem 1.25rem;
-  background-color: #030712;
-  border-bottom: 1px solid #1f2937;
+  padding: 0.85rem 1.25rem;
+  background-color: var(--bg-surface, #ffffff);
+  border-bottom: 1px solid var(--border-color, #e2e8f0);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
   box-sizing: border-box;
 }
 
 .icon-btn {
-  background: #000080;
+  background: var(--brand-primary, #000080);
   border: none;
   color: #ffffff;
-  width: 42px;
-  height: 42px;
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
+  transition: opacity 0.2s ease;
+}
+
+.icon-btn:hover {
+  opacity: 0.9;
 }
 
 .svg-icon {
-  width: 22px;
-  height: 22px;
+  width: 20px;
+  height: 20px;
 }
 
 .header-logo-img {
-  height: 38px;
+  height: 36px;
   width: auto;
   object-fit: contain;
 }
 
+/* Cuerpo Principal */
 .dashboard-main {
   flex: 1;
   display: flex;
@@ -280,19 +290,20 @@ const toggleFullscreen = () => {
   box-sizing: border-box;
 }
 
+/* Saludo de Usuario */
 .user-welcome h2 {
-  font-size: 1.4rem;
-  font-weight: 400;
+  font-size: 1.35rem;
+  font-weight: 500;
   margin: 0;
-  color: #f8fafc;
+  color: var(--text-primary, #0f172a);
 }
 
 .user-welcome span {
   font-weight: 700;
-  color: #38bdf8;
+  color: var(--brand-accent, #0284c7);
 }
 
-/* Botones Rápidos */
+/* Botones de Acción Rápida */
 .quick-actions {
   display: flex;
   gap: 0.75rem;
@@ -302,53 +313,59 @@ const toggleFullscreen = () => {
 .action-card {
   flex: 1;
   min-width: 0;
-  background: #ffffff;
-  border: none;
-  border-radius: 14px;
-  padding: 0.85rem 0.5rem;
+  background: var(--bg-surface, #ffffff);
+  border: 1px solid var(--border-color, #e2e8f0);
+  border-radius: 12px;
+  padding: 0.9rem 0.5rem;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.04);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.action-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08);
 }
 
 .action-icon {
-  color: #000080;
-  margin-bottom: 0.3rem;
+  color: var(--brand-primary, #000080);
+  margin-bottom: 0.35rem;
 }
 
 .action-svg {
-  width: 26px;
-  height: 26px;
+  width: 24px;
+  height: 24px;
 }
 
 .action-card span {
-  color: #0f172a;
+  color: var(--text-primary, #0f172a);
   font-size: 0.8rem;
-  font-weight: 700;
+  font-weight: 600;
 }
 
-/* Títulos de sección y Botón Modo TV */
+/* Titulares de Sección */
 .section-title {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 0.75rem;
+  margin-bottom: 0.65rem;
 }
 
 .section-title h3 {
-  font-size: 1.1rem;
+  font-size: 1.05rem;
   font-weight: 600;
   margin: 0;
-  color: #94a3b8;
+  color: var(--text-secondary, #475569);
 }
 
 .fullscreen-btn {
-  background: rgba(56, 189, 248, 0.1);
-  border: 1px solid #38bdf8;
-  color: #38bdf8;
+  background: rgba(2, 132, 199, 0.08);
+  border: 1px solid var(--brand-accent, #0284c7);
+  color: var(--brand-accent, #0284c7);
   border-radius: 8px;
   padding: 0.35rem 0.75rem;
   font-size: 0.75rem;
@@ -361,16 +378,16 @@ const toggleFullscreen = () => {
 }
 
 .fullscreen-btn:hover {
-  background: #38bdf8;
-  color: #020617;
+  background: var(--brand-accent, #0284c7);
+  color: #ffffff;
 }
 
 .tv-icon {
-  width: 16px;
-  height: 16px;
+  width: 15px;
+  height: 15px;
 }
 
-/* Carrusel Adaptativo Multi-formato */
+/* Carrusel Adaptativo */
 .carousel-wrapper {
   position: relative;
   width: 100%;
@@ -379,14 +396,15 @@ const toggleFullscreen = () => {
 .carousel-viewport {
   width: 100%;
   overflow: hidden;
-  border-radius: 16px;
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
-  background: #1e293b;
+  border-radius: 14px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  background: #000000;
+  border: 1px solid var(--border-color, #e2e8f0);
 }
 
 .carousel-track {
   display: flex;
-  transition: transform 0.4s ease;
+  transition: transform 0.4s cubic-bezier(0.25, 1, 0.5, 1);
 }
 
 .slide-card {
@@ -396,7 +414,7 @@ const toggleFullscreen = () => {
 .media-container {
   position: relative;
   width: 100%;
-  aspect-ratio: 16 / 10;
+  aspect-ratio: 16 / 9;
   background-color: #000000;
   overflow: hidden;
   display: flex;
@@ -411,7 +429,7 @@ const toggleFullscreen = () => {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  filter: blur(16px) brightness(0.45);
+  filter: blur(16px) brightness(0.5);
   transform: scale(1.15);
   pointer-events: none;
 }
@@ -424,7 +442,6 @@ const toggleFullscreen = () => {
   width: auto;
   height: auto;
   object-fit: contain;
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
 }
 
 .media-overlay {
@@ -433,47 +450,50 @@ const toggleFullscreen = () => {
   bottom: 0;
   left: 0;
   right: 0;
-  padding: 1rem;
-  background: linear-gradient(180deg, transparent 0%, rgba(2, 6, 23, 0.92) 100%);
+  padding: 1.25rem 1rem 0.85rem;
+  background: linear-gradient(180deg, transparent 0%, rgba(0, 0, 0, 0.85) 100%);
 }
 
 .category-badge {
-  background-color: #000080;
+  background-color: var(--brand-primary, #000080);
   color: #ffffff;
   padding: 0.2rem 0.6rem;
-  border-radius: 12px;
+  border-radius: 10px;
   font-size: 0.7rem;
   font-weight: 600;
+  text-transform: uppercase;
 }
 
 .media-overlay h3 {
-  margin: 0.3rem 0 0 0;
+  margin: 0.35rem 0 0 0;
   font-size: 1.05rem;
   color: #ffffff;
+  font-weight: 600;
 }
 
 .carousel-dots {
   display: flex;
   justify-content: center;
   gap: 6px;
-  margin-top: 0.6rem;
+  margin-top: 0.65rem;
 }
 
 .dot {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: #475569;
+  background: var(--border-color, #cbd5e1);
   cursor: pointer;
+  transition: all 0.2s ease;
 }
 
 .dot.active {
-  background: #38bdf8;
-  width: 20px;
+  background: var(--brand-accent, #0284c7);
+  width: 22px;
   border-radius: 10px;
 }
 
-/* Feed Secundario */
+/* Feed Secundario de Comunicados */
 .feed-section {
   width: 100%;
 }
@@ -481,47 +501,49 @@ const toggleFullscreen = () => {
 .feed-list {
   display: flex;
   flex-direction: column;
-  gap: 0.6rem;
+  gap: 0.65rem;
 }
 
 .feed-item {
-  background: #1e293b;
+  background: var(--bg-surface, #ffffff);
   border-radius: 12px;
   padding: 0.85rem 1rem;
   display: flex;
   align-items: center;
-  gap: 0.8rem;
-  border: 1px solid #334155;
+  gap: 0.85rem;
+  border: 1px solid var(--border-color, #e2e8f0);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
 }
 
 .feed-badge {
   font-size: 0.65rem;
   font-weight: 700;
-  padding: 0.25rem 0.5rem;
+  padding: 0.25rem 0.55rem;
   border-radius: 6px;
   text-transform: uppercase;
+  letter-spacing: 0.3px;
 }
 
-.feed-badge.urgente { background: #ef4444; color: #ffffff; }
-.feed-badge.general { background: #3b82f6; color: #ffffff; }
-.feed-badge.rh { background: #10b981; color: #ffffff; }
+.feed-badge.urgente { background: #fee2e2; color: #dc2626; }
+.feed-badge.general { background: #e0f2fe; color: #0284c7; }
+.feed-badge.rh { background: #d1fae5; color: #059669; }
 
 .feed-info h4 {
   margin: 0;
   font-size: 0.9rem;
-  color: #f8fafc;
-  font-weight: 500;
+  color: var(--text-primary, #0f172a);
+  font-weight: 600;
 }
 
 .feed-info p {
   margin: 0.2rem 0 0 0;
   font-size: 0.75rem;
-  color: #94a3b8;
+  color: var(--text-secondary, #64748b);
 }
 
-/* REGLETA PASO 3: MODO PANTALLA COMPLETA / TELEVISOR */
+/* Modo TV / Fullscreen */
 .carousel-wrapper:fullscreen {
-  background-color: #020617;
+  background-color: #0b1120;
   display: flex;
   flex-direction: column;
   justify-content: center;
