@@ -1,6 +1,8 @@
 import { createRouter, createWebHistory } from 'vue-router';
 import LoginView from '../views/LoginView.vue';
 import AnunciosView from '../views/AnunciosView.vue';
+import MisAnunciosView from '../views/MisAnunciosView.vue';
+import DocumentosView from '../views/DocumentosView.vue';
 
 const routes = [
   {
@@ -12,6 +14,11 @@ const routes = [
     path: '/anuncios',
     name: 'anuncios',
     component: AnunciosView
+  },
+  {
+    path: '/mis-avisos',
+    name: 'mis-avisos',
+    component: MisAnunciosView
   },
   // ── RUTAS DEL SIDEBAR ──────────────────────────────────
   {
@@ -48,6 +55,16 @@ const routes = [
     path: '/contacto',
     name: 'contacto',
     component: AnunciosView
+  },
+  {
+  path: '/mis-avisos/:id',
+  name: 'detalle-aviso',
+  component: () => import('../views/DetalleAvisoView.vue')
+  },
+  {
+  path: '/documentos',
+  name: 'documentos',
+  component: DocumentosView
   }
 ];
 

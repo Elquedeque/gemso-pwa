@@ -9,19 +9,36 @@
 
       <!-- Navegación Principal -->
       <nav class="nav-section">
-        <router-link 
-          v-for="item in menuPrincipal" 
-          :key="item.label"
-          :to="item.ruta"
-          class="nav-item"
-          :class="{ active: rutaActual === item.ruta }"
-          @click="alNavegar"
-        >
-          <svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor">
-            <path :d="item.iconPath" />
-          </svg>
-          <span>{{ item.label }}</span>
-        </router-link>
+        <template v-for="item in menuPrincipal" :key="item.label">
+          <!-- Enlace externo (Abre nueva pestaña) -->
+          <a 
+            v-if="item.esExterno"
+            :href="item.ruta"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="nav-item"
+            @click="$emit('close')"
+          >
+            <svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor">
+              <path :d="item.iconPath" />
+            </svg>
+            <span>{{ item.label }}</span>
+          </a>
+
+          <!-- Enlace interno (Vue Router) -->
+          <router-link 
+            v-else
+            :to="item.ruta"
+            class="nav-item"
+            :class="{ active: rutaActual === item.ruta }"
+            @click="alNavegar"
+          >
+            <svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor">
+              <path :d="item.iconPath" />
+            </svg>
+            <span>{{ item.label }}</span>
+          </router-link>
+        </template>
       </nav>
 
       <hr class="nav-divider" />
@@ -97,9 +114,14 @@ const rutaActual = computed(() => route.path);
 
 const menuPrincipal = [
   { label: 'Inicio', ruta: '/anuncios', iconPath: 'M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z' },
-  { label: 'Mis Avisos', ruta: '/anuncios', iconPath: 'M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H5.17L4 17.17V4h16v12z' },
+  { label: 'Mis Avisos', ruta: '/Mis-Avisos', iconPath: 'M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H5.17L4 17.17V4h16v12z' },
   { label: 'Documentos', ruta: '/documentos', iconPath: 'M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm0 12H4V8h16v10z' },
-  { label: 'Agenda', ruta: '/agenda', iconPath: 'M19 4h-1V2h-2v2H8V2H6v2H5c-1.11 0-1.99.9-1.99 2L3 20c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V10h14v10zm0-12H5V6h14v2z' }
+  { 
+    label: 'Solicitud T&C', 
+    ruta: 'https://www.google.com', // URL del sitio web
+    iconPath: 'M3.5 18.5a2.5 2.5 0 0 1-1.77-4.27l7-7a2.5 2.5 0 0 1 3.54 3.54l-7 7A2.48 2.48 0 0 1 3.5 18.5zm6.5 0a2.5 2.5 0 0 1-1.77-4.27l7-7a2.5 2.5 0 0 1 3.54 3.54l-7 7A2.48 2.48 0 0 1 10 18.5zm10.5-1A2.5 2.5 0 1 1 18 15a2.5 2.5 0 0 1 2.5 2.5z',
+    esExterno: true 
+  },
 ];
 
 const menuConfiguracion = [
