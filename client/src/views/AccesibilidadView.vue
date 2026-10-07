@@ -1,25 +1,10 @@
 <template>
   <div class="dashboard-container">
-    <!-- Header Institucional -->
-    <header class="dashboard-header">
-      <button class="icon-btn" @click="isMenuOpen = true" title="Abrir menú">
-        <svg class="svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <line x1="3" y1="12" x2="21" y2="12"></line>
-          <line x1="3" y1="6" x2="21" y2="6"></line>
-          <line x1="3" y1="18" x2="21" y2="18"></line>
-        </svg>
-      </button>
-
-      <div class="brand-logo">
-        <img :src="logoGemso" alt="GEMSO" class="header-logo-img" />
-      </div>
-
-      <button class="icon-btn" @click="goBack" title="Volver">
-        <svg class="svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M19 12H5M12 19l-7-7 7-7" />
-        </svg>
-      </button>
-    </header>
+    <!-- Header Componentizado Reutilizable -->
+    <AppHeader 
+      @toggle-menu="isMenuOpen = true" 
+      @toggle-notifications="isNotificationsOpen = true" 
+    />
 
     <!-- Contenido Principal -->
     <main class="dashboard-main">
@@ -122,19 +107,25 @@
       :is-open="isMenuOpen" 
       @close="isMenuOpen = false" 
     />
+
+    <!-- Drawer de Notificaciones -->
+    <NotificationsDrawer 
+      :is-open="isNotificationsOpen" 
+      @close="isNotificationsOpen = false" 
+    />
   </div>
 </template>
 
 <script setup>
 import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
+import AppHeader from '../components/AppHeader.vue';
 import SidebarMenu from '../components/SidebarMenu.vue';
-
-// Importar la imagen explícitamente para que Vite gestione la ruta automáticamente
-import logoGemso from '../assets/icon_GEMSO.png';
+import NotificationsDrawer from '../components/NotificationsDrawer.vue';
 
 const router = useRouter();
 const isMenuOpen = ref(false);
+const isNotificationsOpen = ref(false);
 const isDarkMode = ref(false);
 const fontSize = ref('normal');
 const highContrast = ref(false);
@@ -185,14 +176,6 @@ const toggleHighContrast = () => {
     document.documentElement.classList.remove('high-contrast');
   }
 };
-
-const goBack = () => {
-  if (window.history.length > 1) {
-    router.back();
-  } else {
-    router.push('/anuncios');
-  }
-};
 </script>
 
 <style scoped>
@@ -204,42 +187,6 @@ const goBack = () => {
   background-color: var(--bg-primary, #f1f5f9);
   color: var(--text-primary, #0f172a);
   transition: background-color 0.3s ease, color 0.3s ease;
-}
-
-.dashboard-header {
-  width: 100%;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 0.85rem 1.25rem;
-  background-color: var(--bg-surface, #ffffff);
-  border-bottom: 1px solid var(--border-color, #e2e8f0);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-  box-sizing: border-box;
-}
-
-.icon-btn {
-  background: var(--brand-primary, #000080);
-  border: none;
-  color: #ffffff;
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-}
-
-.svg-icon {
-  width: 20px;
-  height: 20px;
-}
-
-.header-logo-img {
-  height: 36px;
-  width: auto;
-  object-fit: contain;
 }
 
 .dashboard-main {

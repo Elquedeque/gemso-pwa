@@ -1,26 +1,10 @@
 <template>
   <div class="dashboard-container">
-    <!-- Header Institucional -->
-    <header class="dashboard-header">
-      <!-- Botón del menú de hamburguesa en el header -->
-      <button class="icon-btn" @click="isMenuOpen = true" title="Abrir menú">
-        <svg class="svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <line x1="3" y1="12" x2="21" y2="12"></line>
-          <line x1="3" y1="6" x2="21" y2="6"></line>
-          <line x1="3" y1="18" x2="21" y2="18"></line>
-        </svg>
-      </button>
-
-      <div class="brand-logo">
-        <img src="../assets/icon_GEMSO.png" alt="GEMSO" class="header-logo-img" />
-      </div>
-
-      <button class="icon-btn" aria-label="Notificaciones">
-        <svg viewBox="0 0 24 24" class="svg-icon">
-          <path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.89 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z" fill="currentColor"/>
-        </svg>
-      </button>
-    </header>
+    <!-- Header Componentizado -->
+    <AppHeader 
+      @toggle-menu="isMenuOpen = true" 
+      @toggle-notifications="isNotificationsOpen = true" 
+    />
 
     <main class="dashboard-main">
       <!-- Saludo de usuario -->
@@ -37,15 +21,6 @@
             </svg>
           </div>
           <span>Documentos</span>
-        </button>
-
-        <button class="action-card" @click="navegarA('/agenda')">
-          <div class="action-icon">
-            <svg viewBox="0 0 24 24" class="action-svg">
-              <path d="M19 4h-1V2h-2v2H8V2H6v2H5c-1.11 0-1.99.9-1.99 2L3 20c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V10h14v10zm0-12H5V6h14v2z" fill="currentColor"/>
-            </svg>
-          </div>
-          <span>Agenda</span>
         </button>
 
         <button class="action-card" @click="navegarA('/anuncios')">
@@ -122,10 +97,16 @@
       </section>
     </main>
 
-    <!-- COMPONENTE DEL MENÚ LATERAL AGREGADO -->
+    <!-- COMPONENTE DEL MENÚ LATERAL IZQUIERDO -->
     <SidebarMenu 
       :is-open="isMenuOpen" 
       @close="isMenuOpen = false" 
+    />
+
+    <!-- COMPONENTE DEL DRAWER DE NOTIFICACIONES DERECHO -->
+    <NotificationsDrawer 
+      :is-open="isNotificationsOpen" 
+      @close="isNotificationsOpen = false" 
     />
   </div>
 </template>
@@ -133,14 +114,18 @@
 <script setup>
 import { ref, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
+import AppHeader from '../components/AppHeader.vue';
 import SidebarMenu from '../components/SidebarMenu.vue';
+import NotificationsDrawer from '../components/NotificationsDrawer.vue';
 
 const router = useRouter();
 const usuarioNombre = ref('Usuario');
 const currentIndex = ref(0);
 
-// Variable para controlar la visibilidad del menú lateral
+// Controles de visibilidad para los paneles laterales
 const isMenuOpen = ref(false);
+const isNotificationsOpen = ref(false);
+
 let autoSlideInterval = null;
 
 const avisosDestacados = ref([
@@ -233,48 +218,6 @@ const toggleFullscreen = () => {
   color: var(--text-primary, #0f172a);
   box-sizing: border-box;
   transition: background-color 0.3s ease, color 0.3s ease;
-}
-
-/* Header Institucional */
-.dashboard-header {
-  width: 100%;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 0.85rem 1.25rem;
-  background-color: var(--bg-surface, #ffffff);
-  border-bottom: 1px solid var(--border-color, #e2e8f0);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-  box-sizing: border-box;
-}
-
-.icon-btn {
-  background: var(--brand-primary, #000080);
-  border: none;
-  color: #ffffff;
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: opacity 0.2s ease;
-}
-
-.icon-btn:hover {
-  opacity: 0.9;
-}
-
-.svg-icon {
-  width: 20px;
-  height: 20px;
-}
-
-.header-logo-img {
-  height: 36px;
-  width: auto;
-  object-fit: contain;
 }
 
 /* Cuerpo Principal */
