@@ -53,6 +53,67 @@ app.post('/api/login', async (req, res) => {
   }
 });
 
+// Endpoint de Registro de Usuarios
+app.post('/api/usuarios', async (req, res) => {
+  const { 
+    nombre_completo, 
+    correo, 
+    contraseña, 
+    puesto, 
+    id_departamento, 
+    fecha_nacimiento, 
+    fecha_ingreso 
+  } = req.body;
+
+  // Validación básica de campos requeridos
+  if (!nombre_completo || !correo || !contraseña || !puesto || !id_departamento || !fecha_nacimiento || !fecha_ingreso) {
+    return res.status(400).json({ error: 'Todos los campos son obligatorios' });
+  }
+
+  try {
+    // 1. Verificar si el correo ya existe
+    const checkEmail = await db.query('SELECT id_usu FROM usuarios WHERE correo = $1', [correo]);
+    if (checkEmail.rows.length > 0) {
+      return res.status(400).json({ message: 'El correo electrónico ya está registrado.' });
+    }
+
+    // 2. Insertar en la base de datos PostgreSQL
+    const query = `
+      INSERT INTO usuarios (
+        nombre_completo, 
+        correo, 
+        contraseña, 
+        puesto, 
+        id_departamento, 
+        fecha_nacimiento, 
+        fecha_ingreso
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
+      RETURNING id_usu, nombre_completo, correo;
+    `;
+
+    const values = [
+      nombre_completo, 
+      correo, 
+      contraseña, 
+      puesto, 
+      id_departamento, 
+      fecha_nacimiento, 
+      fecha_ingreso
+    ];
+
+    const result = await db.query(query, values);
+
+    res.status(201).json({
+      message: 'Usuario registrado exitosamente',
+      usuario: result.rows[0]
+    });
+  } catch (error) {
+    console.error('Error al registrar usuario:', error);
+    res.status(500).json({ message: 'Error interno del servidor al intentar registrar.' });
+  }
+});
+
 // NUEVO: Endpoint para obtener todos los anuncios
 app.get('/api/anuncios', async (req, res) => {
   try {

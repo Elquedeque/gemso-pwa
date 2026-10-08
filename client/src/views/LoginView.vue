@@ -107,7 +107,7 @@ const olvidoContraseña = () => {
 };
 
 const goRegister = () => {
-  alert('Módulo de registro en construcción.');
+  router.push('/registro');
 };
 </script>
 

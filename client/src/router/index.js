@@ -8,12 +8,23 @@ import AjustesView from '../views/AjustesView.vue';
 import AyudaView from '../views/AyudaView.vue';
 import ContactoView from '../views/ContactoView.vue';
 import CrearAvisoView from '../views/CrearAvisoView.vue';
+import RegistroView from '../views/RegistroView.vue';
 
 const routes = [
+  // Redirección de la raíz '/' al Login para evitar la pantalla azul
   {
     path: '/',
+    redirect: '/login'
+  },
+  {
+    path: '/login',
     name: 'login',
     component: LoginView
+  },
+  {
+    path: '/registro',
+    name: 'registro',
+    component: RegistroView
   },
   {
     path: '/anuncios',
@@ -25,11 +36,41 @@ const routes = [
     name: 'mis-avisos',
     component: MisAnunciosView
   },
+  {
+    path: '/mis-avisos/:id',
+    name: 'detalle-aviso',
+    component: () => import('../views/DetalleAvisoView.vue')
+  },
+  {
+    path: '/crear-aviso',
+    name: 'crear-aviso',
+    component: CrearAvisoView
+  },
   // ── RUTAS DEL SIDEBAR ──────────────────────────────────
   {
     path: '/documentos',
     name: 'documentos',
-    component: AnunciosView // Cambiar por DocumentosView cuando esté listo
+    component: DocumentosView
+  },
+  {
+    path: '/perfil',
+    name: 'perfil',
+    component: PerfilView
+  },
+  {
+    path: '/ajustes',
+    name: 'ajustes',
+    component: AjustesView
+  },
+  {
+    path: '/ayuda',
+    name: 'ayuda',
+    component: AyudaView
+  },
+  {
+    path: '/contacto',
+    name: 'contacto',
+    component: ContactoView
   },
   {
     path: '/agenda',
@@ -37,64 +78,9 @@ const routes = [
     component: AnunciosView
   },
   {
-    path: '/perfil',
-    name: 'perfil',
-    component: AnunciosView
-  },
-  {
     path: '/accesibilidad',
     name: 'accesibilidad',
     component: () => import('../views/AccesibilidadView.vue')
-  },
-  {
-    path: '/ajustes',
-    name: 'ajustes',
-    component: AnunciosView
-  },
-  {
-    path: '/ayuda',
-    name: 'ayuda',
-    component: AnunciosView
-  },
-  {
-    path: '/contacto',
-    name: 'contacto',
-    component: AnunciosView
-  },
-  {
-  path: '/mis-avisos/:id',
-  name: 'detalle-aviso',
-  component: () => import('../views/DetalleAvisoView.vue')
-  },
-  {
-  path: '/documentos',
-  name: 'documentos',
-  component: DocumentosView
-  },
-  {
-  path: '/perfil',
-  name: 'perfil',
-  component: PerfilView
-  },
-  {
-  path: '/ajustes',
-  name: 'ajustes',
-  component: AjustesView
-  },
-  {
-  path: '/ayuda',
-  name: 'ayuda',
-  component: AyudaView
-  },
-  {
-  path: '/contacto',
-  name: 'contacto',
-  component: ContactoView
-  },
-  {
-  path: '/crear-aviso',
-  name: 'crear-aviso',
-  component: CrearAvisoView
   }
 ];
 
