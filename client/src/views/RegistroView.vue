@@ -1,13 +1,13 @@
 <template>
   <div class="auth-container">
     <div class="auth-card">
-      <header class="auth-header">
-        <div class="brand-logo">
-          <h1>GEMSO</h1>
-        </div>
-        <h2>Crear Cuenta</h2>
-        <p class="subtitle">Ingresa tus datos para registrarte en el portal</p>
-      </header>
+        <header class="auth-header">
+            <div class="brand-logo">
+                <img src="../assets/icon_GEMSO.png" alt="GEMSO Logo" class="logo-img" />
+            </div>
+            <h2>Crear Cuenta</h2>
+            <p class="subtitle">Ingresa tus datos para registrarte en el portal</p>
+        </header>
 
       <form class="auth-form" @submit.prevent="handleRegistro">
         <!-- Nombre Completo -->
@@ -63,7 +63,7 @@
           </div>
         </div>
 
-        <!-- Puesto y Departamento -->
+        <!-- Puesto y Departamento (Dropdown de la BD) -->
         <div class="form-row">
           <div class="form-group">
             <label for="puesto">Puesto / Cargo *</label>
@@ -78,14 +78,21 @@
           </div>
 
           <div class="form-group">
-            <label for="departamento">ID Departamento *</label>
-            <input 
-              id="departamento"
-              type="number" 
-              v-model.number="formulario.id_departamento" 
-              placeholder="Ej. 1" 
-              required 
-            />
+            <label for="departamento">Departamento *</label>
+            <select 
+              id="departamento" 
+              v-model="formulario.id_departamento" 
+              required
+            >
+              <option value="" disabled selected>Selecciona departamento</option>
+              <option 
+                v-for="dep in departamentos" 
+                :key="dep.id_dep" 
+                :value="dep.id_dep"
+              >
+                {{ dep.nombre }}
+              </option>
+            </select>
           </div>
         </div>
 
@@ -120,8 +127,7 @@
 
         <div class="auth-footer">
           <span>¿Ya tienes una cuenta?</span>
-          <!-- Cambiado a la ruta de tu Login (generalmente es '/') -->
-          <router-link to="/" class="login-link">Iniciar Sesión</router-link>
+          <router-link to="/login" class="login-link">Iniciar Sesión</router-link>
         </div>
       </form>
     </div>
@@ -129,22 +135,39 @@
 </template>
 
 <script setup>
-import { ref } from 'vue';
+import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 
 const router = useRouter();
 const isSubmitting = ref(false);
 const errorMsg = ref('');
 const confirmarPassword = ref('');
+const departamentos = ref([]);
 
 const formulario = ref({
   nombre_completo: '',
   correo: '',
   contraseña: '',
   puesto: '',
-  id_departamento: 1,
+  id_departamento: '',
   fecha_nacimiento: '',
   fecha_ingreso: ''
+});
+
+// Cargar Departamentos desde PostgreSQL
+const cargarDepartamentos = async () => {
+  try {
+    const res = await fetch('http://localhost:3000/api/departamentos');
+    if (res.ok) {
+      departamentos.value = await res.json();
+    }
+  } catch (err) {
+    console.error('Error al obtener departamentos:', err);
+  }
+};
+
+onMounted(() => {
+  cargarDepartamentos();
 });
 
 const handleRegistro = async () => {
@@ -155,31 +178,31 @@ const handleRegistro = async () => {
     return;
   }
 
+  if (!formulario.value.id_departamento) {
+    errorMsg.value = 'Por favor selecciona un departamento.';
+    return;
+  }
+
   isSubmitting.value = true;
 
   try {
-    // CAMBIA 'http://localhost:3000/api/usuarios' POR LA URL Y PUERTO REAL DE TU BACKEND
     const response = await fetch('http://localhost:3000/api/usuarios', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(formulario.value)
     });
 
     const data = await response.json();
 
     if (!response.ok) {
-      throw new Error(data.message || 'Error al guardar el usuario en la base de datos');
+      throw new Error(data.message || data.error || 'Error al guardar el usuario');
     }
 
-    alert('¡Usuario registrado con éxito!');
-    
-    // Redirigir a la ruta raíz '/' si allí está tu vista de Login
-    router.push('/'); 
+    alert('¡Usuario registrado exitosamente!');
+    router.push('/login');
   } catch (error) {
-    console.error('Error durante el registro:', error);
-    errorMsg.value = error.message || 'No se pudo conectar con el servidor backend.';
+    console.error('Error en el registro:', error);
+    errorMsg.value = error.message;
   } finally {
     isSubmitting.value = false;
   }
@@ -267,8 +290,8 @@ label {
 input[type="text"],
 input[type="email"],
 input[type="password"],
-input[type="number"],
-input[type="date"] {
+input[type="date"],
+select {
   width: 100%;
   padding: 0.7rem 0.85rem;
   border: 1px solid #cbd5e1;
@@ -281,7 +304,8 @@ input[type="date"] {
   transition: all 0.2s ease;
 }
 
-input:focus {
+input:focus,
+select:focus {
   border-color: #000080;
   background-color: #ffffff;
   box-shadow: 0 0 0 3px rgba(0, 0, 128, 0.1);
@@ -326,5 +350,18 @@ input:focus {
   color: #000080;
   font-weight: 700;
   text-decoration: none;
+}
+
+.brand-logo {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.logo-img {
+  max-width: 120px;
+  height: auto;
+  object-fit: contain;
 }
 </style>

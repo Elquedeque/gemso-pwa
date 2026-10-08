@@ -114,7 +114,18 @@ app.post('/api/usuarios', async (req, res) => {
   }
 });
 
-// NUEVO: Endpoint para obtener todos los anuncios
+// Endpoint para obtener la lista de departamentos
+app.get('/api/departamentos', async (req, res) => {
+  try {
+    const result = await db.query('SELECT id_dep, nombre FROM departamentos ORDER BY nombre ASC');
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error al obtener departamentos:', error);
+    res.status(500).json({ error: 'Error al consultar la base de datos' });
+  }
+});
+
+// Endpoint para obtener todos los anuncios
 app.get('/api/anuncios', async (req, res) => {
   try {
     const query = `

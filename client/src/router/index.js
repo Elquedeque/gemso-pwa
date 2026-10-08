@@ -11,7 +11,6 @@ import CrearAvisoView from '../views/CrearAvisoView.vue';
 import RegistroView from '../views/RegistroView.vue';
 
 const routes = [
-  // Redirección de la raíz '/' al Login para evitar la pantalla azul
   {
     path: '/',
     redirect: '/login'
@@ -81,6 +80,11 @@ const routes = [
     path: '/accesibilidad',
     name: 'accesibilidad',
     component: () => import('../views/AccesibilidadView.vue')
+  },
+  // ── RUTA CATCH-ALL (Redirige cualquier ruta desconocida o rota al Login) ──
+  {
+    path: '/:pathMatch(.*)*',
+    redirect: '/login'
   }
 ];
 
