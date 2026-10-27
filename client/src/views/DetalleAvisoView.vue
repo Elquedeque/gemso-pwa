@@ -16,9 +16,20 @@
         <span>Volver a Mis Avisos</span>
       </button>
 
+      <!-- Estado de Carga / Error -->
+      <div v-if="cargando" class="estado-box">
+        <p>Cargando aviso...</p>
+      </div>
+
+      <div v-else-if="errorCarga" class="estado-box">
+        <h3>{{ errorCarga }}</h3>
+        <button class="back-link" @click="goBack">Regresar a la lista</button>
+      </div>
+
+      <template v-else-if="aviso">
       <!-- Encabezado de la Noticia / Aviso -->
       <header class="aviso-header">
-        <span class="section-label">Aviso</span>
+        <span class="section-label">{{ aviso.urgente ? 'Aviso Urgente' : 'Aviso' }}</span>
         <h1 class="aviso-title">{{ aviso.titulo }}</h1>
         <p class="aviso-origen">{{ aviso.origen }}</p>
       </header>
@@ -77,11 +88,13 @@
         <button 
           class="btn-confirm-read" 
           :class="{ 'is-read': aviso.leido }"
+          :disabled="aviso.leido || confirmando"
           @click="confirmarLectura"
         >
-          {{ aviso.leido ? 'Lectura Confirmada' : 'Confirmar Lectura' }}
+          {{ aviso.leido ? 'Lectura Confirmada' : confirmando ? 'Confirmando...' : 'Confirmar Lectura' }}
         </button>
       </footer>
+      </template>
     </main>
 
     <!-- Sidebar Menu -->
@@ -99,51 +112,134 @@
 </template>
 
 <script setup>
-import { ref } from 'vue';
-import { useRouter } from 'vue-router';
+import { ref, onMounted } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
+import { API_URL } from '../api';
 import AppHeader from '../components/AppHeader.vue';
 import SidebarMenu from '../components/SidebarMenu.vue';
 import NotificationsDrawer from '../components/NotificationsDrawer.vue';
 
+const route = useRoute();
 const router = useRouter();
 
 // Modales del Sidebar
 const isMenuOpen = ref(false);
 const isNotificationsOpen = ref(false);
 
-// Datos Mock del Aviso (Plantilla para la vista)
-const aviso = ref({
-  id: 1,
-  titulo: 'Título de Aviso',
-  origen: 'Origen de Aviso',
-  leido: false,
-  contenido: [
-    'Lorem ipsum dolor sit amet consectetur adipiscing elit nibh praesent, suscipit sem netus et aliquam etiam condimentum ligula libero, lobortis metus sociosqu luctus vitae venenatis class augue.',
-    'Viverra litora fringilla sociosqu commodo vitae leo est conubia penatibus nostra, suspendisse dictumst ullamcorper ante purus maecenas sollicitudin rutrum congue quam.'
-  ],
-  adjuntos: [
-    { id: 101, nombre: 'Nombre_Ejemplo.pdf', tipo: 'pdf', url: '#' },
-    { id: 102, nombre: 'Nombre_Ejemplo.docx', tipo: 'docx', url: '#' },
-    { id: 103, nombre: 'Nombre_Ejemplo.png', tipo: 'png', url: '#' }
-  ]
+const aviso = ref(null);
+const cargando = ref(false);
+const errorCarga = ref('');
+const confirmando = ref(false);
+let usuario = null;
+
+const formatearFecha = (fecha) =>
+  new Date(fecha).toLocaleDateString('es-MX', { day: 'numeric', month: 'long', year: 'numeric' });
+
+// Tipo para elegir el icono: se toma de la extensión del nombre del archivo
+const tipoDeArchivo = (nombre) => (nombre.split('.').pop() || '').toLowerCase();
+
+// Convierte la respuesta de la API al formato que usa la plantilla
+const mapearAviso = (a) => ({
+  id: a.id_anu,
+  titulo: a.titulo,
+  urgente: a.urgente,
+  origen: [
+    a.autor,
+    a.departamento_destino ? `Para: ${a.departamento_destino}` : null,
+    formatearFecha(a.fecha_creacion)
+  ].filter(Boolean).join(' · '),
+  leido: a.leido,
+  // Cada salto de línea del contenido se muestra como un párrafo
+  contenido: a.contenido.split(/\n+/).map(p => p.trim()).filter(Boolean),
+  adjuntos: a.adjuntos.map(adj => ({
+    id: adj.id_anu_adj,
+    nombre: adj.nombre_archivo,
+    tipo: tipoDeArchivo(adj.nombre_archivo),
+    url: adj.url_archivo
+  }))
 });
+
+const cargarAviso = async () => {
+  cargando.value = true;
+  errorCarga.value = '';
+  try {
+    const res = await fetch(`${API_URL}/api/anuncios/${route.params.id}?id_usu=${usuario.id_usu}`);
+    const data = await res.json();
+    if (!res.ok) {
+      errorCarga.value = data.error || 'No se pudo cargar el aviso';
+      return;
+    }
+    aviso.value = mapearAviso(data);
+  } catch (error) {
+    console.error('Error al cargar el aviso:', error);
+    errorCarga.value = 'No se pudo conectar con el servidor';
+  } finally {
+    cargando.value = false;
+  }
+};
 
 // Métodos de interacción
 const goBack = () => {
   router.push('/mis-avisos');
 };
 
-const confirmarLectura = () => {
-  aviso.value.leido = !aviso.value.leido;
+const confirmarLectura = async () => {
+  if (aviso.value.leido || confirmando.value) return;
+  confirmando.value = true;
+  try {
+    const res = await fetch(`${API_URL}/api/anuncios/${aviso.value.id}/leido`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id_usu: usuario.id_usu })
+    });
+    if (!res.ok) {
+      const data = await res.json();
+      alert(data.error || 'No se pudo confirmar la lectura');
+      return;
+    }
+    aviso.value.leido = true;
+  } catch (error) {
+    console.error('Error al confirmar lectura:', error);
+    alert('No se pudo conectar con el servidor');
+  } finally {
+    confirmando.value = false;
+  }
 };
 
+// Solo se permiten URLs http(s) o relativas (evita enlaces "javascript:" guardados en la BD)
+const esUrlSegura = (url) => {
+  try {
+    return ['http:', 'https:'].includes(new URL(url, window.location.origin).protocol);
+  } catch {
+    return false;
+  }
+};
+
+// Los adjuntos dependen del storage que se defina; por ahora se abre la URL guardada
 const descargarAdjunto = (adjunto) => {
-  console.log('Descargando archivo:', adjunto.nombre);
+  if (!esUrlSegura(adjunto.url)) return alert('El archivo no tiene una ubicación válida');
+  const link = document.createElement('a');
+  link.href = adjunto.url;
+  link.download = adjunto.nombre;
+  link.click();
 };
 
 const verAdjunto = (adjunto) => {
-  console.log('Previsualizando archivo:', adjunto.nombre);
+  if (!esUrlSegura(adjunto.url)) return alert('El archivo no tiene una ubicación válida');
+  window.open(adjunto.url, '_blank', 'noopener');
 };
+
+onMounted(() => {
+  const sesion = localStorage.getItem('usuario');
+  usuario = sesion ? JSON.parse(sesion) : null;
+
+  if (!usuario?.id_usu) {
+    router.push('/login');
+    return;
+  }
+
+  cargarAviso();
+});
 </script>
 
 <style scoped>
@@ -314,8 +410,28 @@ const verAdjunto = (adjunto) => {
   background-color: #059669;
 }
 
-.btn-confirm-read:hover {
+.btn-confirm-read:hover:not(:disabled) {
   opacity: 0.95;
   transform: translateY(-1px);
+}
+
+.btn-confirm-read:disabled {
+  cursor: default;
+}
+
+/* Estados de carga / error */
+.estado-box {
+  text-align: center;
+  padding: 3rem 1rem;
+  color: #475569;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.estado-box h3 {
+  margin: 0;
+  color: #0f172a;
 }
 </style>
