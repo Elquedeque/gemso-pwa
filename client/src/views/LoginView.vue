@@ -15,9 +15,13 @@
       <form @submit.prevent="handleLogin" class="login-form">
         <div class="input-group">
           <input 
-            type="text" 
-            v-model="correo" 
-            placeholder="Usuario" 
+            type="text"
+            v-model="correo"
+            placeholder="Usuario"
+            autocomplete="username"
+            autocapitalize="none"
+            autocorrect="off"
+            spellcheck="false"
             required 
             class="custom-input"
           />

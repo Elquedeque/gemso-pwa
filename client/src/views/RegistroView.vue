@@ -29,8 +29,12 @@
           <input 
             id="correo"
             type="email" 
-            v-model="formulario.correo" 
+            v-model="formulario.correo"
             maxlength="150"
+            autocomplete="email"
+            autocapitalize="none"
+            autocorrect="off"
+            spellcheck="false"
             placeholder="usuario@gemso.com" 
             required 
           />

@@ -39,9 +39,13 @@ const obtenerPermisos = async (idUsu) => {
 
 const tienePermiso = async (idUsu, permiso) => (await obtenerPermisos(idUsu)).includes(permiso);
 
+// Los correos se manejan sin distinguir mayúsculas y sin espacios (ver migración 002)
+const normalizarCorreo = (correo) => String(correo ?? '').trim().toLowerCase();
+
 // Endpoint de Inicio de Sesión
 app.post('/api/login', async (req, res) => {
-  const { correo, contraseña } = req.body;
+  const { contraseña } = req.body;
+  const correo = normalizarCorreo(req.body.correo);
 
   if (!correo || !contraseña) {
     return res.status(400).json({ error: 'Debes proporcionar correo y contraseña' });
@@ -52,7 +56,7 @@ app.post('/api/login', async (req, res) => {
       SELECT u.id_usu, u.nombre_completo, u.correo, u.puesto, d.nombre AS departamento
       FROM usuarios u
       LEFT JOIN departamentos d ON u.id_departamento = d.id_dep
-      WHERE u.correo = $1 AND u.contraseña = $2
+      WHERE LOWER(u.correo) = $1 AND u.contraseña = $2
     `;
     
     const result = await db.query(query, [correo, contraseña]);
@@ -76,10 +80,10 @@ app.post('/api/login', async (req, res) => {
 
 // Endpoint de Registro de Usuarios
 app.post('/api/usuarios', async (req, res) => {
-  const { 
-    nombre_completo, 
-    correo, 
-    contraseña, 
+  const correo = normalizarCorreo(req.body.correo);
+  const {
+    nombre_completo,
+    contraseña,
     puesto, 
     id_departamento, 
     fecha_nacimiento, 
@@ -93,7 +97,7 @@ app.post('/api/usuarios', async (req, res) => {
 
   try {
     // 1. Verificar si el correo ya existe
-    const checkEmail = await db.query('SELECT id_usu FROM usuarios WHERE correo = $1', [correo]);
+    const checkEmail = await db.query('SELECT id_usu FROM usuarios WHERE LOWER(correo) = $1', [correo]);
     if (checkEmail.rows.length > 0) {
       return res.status(400).json({ message: 'El correo electrónico ya está registrado.' });
     }
@@ -143,6 +147,10 @@ app.post('/api/usuarios', async (req, res) => {
       usuario: result.rows[0]
     });
   } catch (error) {
+    // 23505: correo duplicado (p. ej. dos registros simultáneos con el mismo correo)
+    if (error.code === '23505') {
+      return res.status(400).json({ message: 'El correo electrónico ya está registrado.' });
+    }
     console.error('Error al registrar usuario:', error);
     res.status(500).json({ message: 'Error interno del servidor al intentar registrar.' });
   }
