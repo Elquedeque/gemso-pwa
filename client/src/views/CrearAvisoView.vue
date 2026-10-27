@@ -134,6 +134,7 @@
 <script setup>
 import { ref } from 'vue';
 import { useRouter } from 'vue-router';
+import { API_URL } from '../api';
 import AppHeader from '../components/AppHeader.vue';
 import SidebarMenu from '../components/SidebarMenu.vue';
 import NotificationsDrawer from '../components/NotificationsDrawer.vue';
@@ -174,20 +175,43 @@ const removeImage = () => {
 };
 
 const publicarAviso = async () => {
+  // El autor es el usuario que inició sesión (guardado por LoginView)
+  const sesion = localStorage.getItem('usuario');
+  const usuario = sesion ? JSON.parse(sesion) : null;
+  if (!usuario?.id_usu) {
+    alert('Tu sesión expiró. Inicia sesión nuevamente para publicar.');
+    router.push('/login');
+    return;
+  }
+
   isSubmitting.value = true;
-  
-  // Aquí integrarías la petición HTTP (fetch / axios / Supabase / PostgreSQL)
+
   try {
-    console.log('Datos del nuevo aviso:', nuevoAviso.value);
-    
-    // Simulación de respuesta exitosa
-    await new Promise(resolve => setTimeout(resolve, 800));
-    
+    // Nota: "Destacado" e imagen aún no tienen columna en la BD, por eso no se envían.
+    const response = await fetch(`${API_URL}/api/anuncios`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        titulo: nuevoAviso.value.titulo,
+        contenido: nuevoAviso.value.contenido,
+        categoria: nuevoAviso.value.categoria,
+        urgente: nuevoAviso.value.tipo === 'Urgente',
+        id_autor: usuario.id_usu
+      })
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      alert(data.error || 'Hubo un error al guardar el comunicado');
+      return;
+    }
+
     alert('¡Aviso publicado con éxito!');
     router.push('/mis-avisos');
   } catch (error) {
     console.error('Error al publicar el aviso:', error);
-    alert('Hubo un error al guardar el comunicado');
+    alert('No se pudo conectar con el servidor');
   } finally {
     isSubmitting.value = false;
   }

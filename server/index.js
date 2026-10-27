@@ -151,6 +151,50 @@ app.get('/api/anuncios', async (req, res) => {
   }
 });
 
+// Endpoint para publicar un anuncio
+app.post('/api/anuncios', async (req, res) => {
+  const { titulo, contenido, categoria, urgente, id_autor, id_dep_destino } = req.body;
+
+  // Validación básica de campos requeridos
+  if (!titulo?.trim() || !contenido?.trim() || !categoria?.trim() || !id_autor) {
+    return res.status(400).json({ error: 'Título, contenido, categoría y autor son obligatorios' });
+  }
+
+  try {
+    const query = `
+      INSERT INTO anuncios (titulo, contenido, categoria, urgente, id_autor, id_dep_destino)
+      VALUES ($1, $2, $3, $4, $5, $6)
+      RETURNING id_anu, titulo, contenido, categoria, urgente, id_autor, id_dep_destino, fecha_creacion;
+    `;
+    const values = [
+      titulo.trim(),
+      contenido.trim(),
+      categoria.trim(),
+      urgente === true,
+      id_autor,
+      id_dep_destino || null // null = visible para todos los departamentos
+    ];
+
+    const result = await db.query(query, values);
+
+    res.status(201).json({
+      message: 'Anuncio publicado exitosamente',
+      anuncio: result.rows[0]
+    });
+  } catch (error) {
+    // 23503: el autor o el departamento no existen
+    if (error.code === '23503') {
+      return res.status(400).json({ error: 'El autor o el departamento indicado no existe' });
+    }
+    // 22001: texto más largo de lo permitido por la columna
+    if (error.code === '22001') {
+      return res.status(400).json({ error: 'Alguno de los campos excede la longitud permitida' });
+    }
+    console.error('Error al publicar anuncio:', error);
+    res.status(500).json({ error: 'Error interno del servidor al publicar el anuncio' });
+  }
+});
+
 // Agregamos '0.0.0.0' para que escuche a cualquier dispositivo de tu red
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`Servidor Express listo para recibir conexiones en el puerto ${PORT}`);
