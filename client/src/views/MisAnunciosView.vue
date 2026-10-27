@@ -14,9 +14,9 @@
           <p class="subtitle">Comunicados e informativos oficiales de la organización</p>
         </div>
 
-        <!-- Accion Condicional para T&C / Creadores -->
+        <!-- Solo visible para usuarios con permiso publicar_avisos -->
         <button 
-          v-if="esUsuarioTyC" 
+          v-if="puedePublicar" 
           class="btn-create-announcement" 
           @click="crearAviso"
         >
@@ -132,7 +132,7 @@ const router = useRouter();
 
 const isMenuOpen = ref(false);
 const isNotificationsOpen = ref(false);
-const esUsuarioTyC = ref(false);
+const puedePublicar = ref(false);
 const filtroActivo = ref('todos');
 
 const listaFiltros = [
@@ -233,7 +233,8 @@ onMounted(() => {
     return;
   }
 
-  esUsuarioTyC.value = usuario.rol === 'TyC' || usuario.departamento === 'Talento y Cultura' || usuario.esCreador;
+  // Permisos que devuelve el login (tabla usuario_permisos). Beta: solo Talento y Cultura
+  puedePublicar.value = Array.isArray(usuario.permisos) && usuario.permisos.includes('publicar_avisos');
   cargarAvisos();
 });
 </script>

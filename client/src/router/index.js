@@ -43,7 +43,20 @@ const routes = [
   {
     path: '/crear-aviso',
     name: 'crear-aviso',
-    component: CrearAvisoView
+    component: CrearAvisoView,
+    // Solo usuarios con permiso 'publicar_avisos' (beta: Talento y Cultura).
+    // Es solo para la interfaz: el backend vuelve a validar el permiso al publicar.
+    beforeEnter: () => {
+      let usuario = null;
+      try {
+        usuario = JSON.parse(localStorage.getItem('usuario'));
+      } catch {
+        usuario = null;
+      }
+      if (!usuario?.id_usu) return '/login';
+      if (!usuario.permisos?.includes('publicar_avisos')) return '/mis-avisos';
+      return true;
+    }
   },
   // ── RUTAS DEL SIDEBAR ──────────────────────────────────
   {

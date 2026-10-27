@@ -20,6 +20,25 @@ app.get('/api/health', async (req, res) => {
   }
 });
 
+// ---- Permisos (tablas permisos / usuario_permisos) ----
+// Beta: solo Talento y Cultura tiene 'publicar_avisos' (ver server/migrations/001_*.sql)
+const PERMISO_PUBLICAR_AVISOS = 'publicar_avisos';
+
+// Devuelve la lista de nombres de permiso del usuario, ej. ['publicar_avisos']
+const obtenerPermisos = async (idUsu) => {
+  const result = await db.query(
+    `SELECT p.nombre
+     FROM usuario_permisos up
+     JOIN permisos p ON p.id_per = up.id_per
+     WHERE up.id_usu = $1
+     ORDER BY p.nombre`,
+    [idUsu]
+  );
+  return result.rows.map(r => r.nombre);
+};
+
+const tienePermiso = async (idUsu, permiso) => (await obtenerPermisos(idUsu)).includes(permiso);
+
 // Endpoint de Inicio de Sesión
 app.post('/api/login', async (req, res) => {
   const { correo, contraseña } = req.body;
@@ -43,6 +62,8 @@ app.post('/api/login', async (req, res) => {
     }
 
     const usuario = result.rows[0];
+    usuario.permisos = await obtenerPermisos(usuario.id_usu);
+
     res.json({
       message: 'Inicio de sesión exitoso',
       usuario
@@ -77,19 +98,32 @@ app.post('/api/usuarios', async (req, res) => {
       return res.status(400).json({ message: 'El correo electrónico ya está registrado.' });
     }
 
-    // 2. Insertar en la base de datos PostgreSQL
+    // 2. Insertar en la base de datos PostgreSQL.
+    //    En la misma sentencia (atómica): si el usuario es de Talento y Cultura,
+    //    se le asigna el permiso de publicar avisos (regla de la beta).
     const query = `
-      INSERT INTO usuarios (
-        nombre_completo, 
-        correo, 
-        contraseña, 
-        puesto, 
-        id_departamento, 
-        fecha_nacimiento, 
-        fecha_ingreso
+      WITH nuevo AS (
+        INSERT INTO usuarios (
+          nombre_completo,
+          correo,
+          contraseña,
+          puesto,
+          id_departamento,
+          fecha_nacimiento,
+          fecha_ingreso
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
+        RETURNING id_usu, nombre_completo, correo, id_departamento
+      ),
+      permiso_tyc AS (
+        INSERT INTO usuario_permisos (id_usu, id_per)
+        SELECT nuevo.id_usu, p.id_per
+        FROM nuevo
+        JOIN departamentos d ON d.id_dep = nuevo.id_departamento
+        JOIN permisos p ON p.nombre = '${PERMISO_PUBLICAR_AVISOS}'
+        WHERE d.nombre = 'Talento y Cultura'
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7)
-      RETURNING id_usu, nombre_completo, correo;
+      SELECT id_usu, nombre_completo, correo FROM nuevo;
     `;
 
     const values = [
@@ -251,8 +285,16 @@ app.post('/api/anuncios', async (req, res) => {
   if (!titulo?.trim() || !contenido?.trim() || !categoria?.trim() || !id_autor) {
     return res.status(400).json({ error: 'Título, contenido, categoría y autor son obligatorios' });
   }
+  if (!Number.isInteger(Number(id_autor)) || Number(id_autor) <= 0) {
+    return res.status(400).json({ error: 'Autor inválido' });
+  }
 
   try {
+    // Solo usuarios con permiso pueden publicar (beta: Talento y Cultura)
+    if (!(await tienePermiso(id_autor, PERMISO_PUBLICAR_AVISOS))) {
+      return res.status(403).json({ error: 'No tienes permiso para publicar avisos' });
+    }
+
     const query = `
       INSERT INTO anuncios (titulo, contenido, categoria, urgente, id_autor, id_dep_destino)
       VALUES ($1, $2, $3, $4, $5, $6)
