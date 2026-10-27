@@ -121,18 +121,29 @@
           <router-link to="/mis-avisos" class="link-more">Ver todos</router-link>
         </div>
 
-        <div class="comunicados-list">
-          <article 
-            v-for="(item, idx) in comunicadosRecientes" 
-            :key="idx" 
+        <p v-if="cargandoRecientes" class="comunicados-estado">Cargando comunicados...</p>
+
+        <p v-else-if="errorRecientes" class="comunicados-estado">
+          {{ errorRecientes }}
+          <button class="link-more" @click="cargarRecientes">Reintentar</button>
+        </p>
+
+        <p v-else-if="comunicadosRecientes.length === 0" class="comunicados-estado">
+          No hay comunicados por el momento.
+        </p>
+
+        <div v-else class="comunicados-list">
+          <article
+            v-for="item in comunicadosRecientes"
+            :key="item.id"
             class="comunicado-item"
-            @click="navegarA('/mis-avisos')"
+            @click="navegarA(`/mis-avisos/${item.id}`)"
           >
-            <div class="status-indicator" :class="item.tipo.toLowerCase()"></div>
-            
+            <div class="status-indicator" :class="item.clase"></div>
+
             <div class="comunicado-body">
               <div class="comunicado-top">
-                <span class="type-badge" :class="item.tipo.toLowerCase()">{{ item.tipo }}</span>
+                <span class="type-badge" :class="item.clase">{{ item.etiqueta }}</span>
                 <span class="comunicado-date">{{ item.fecha }}</span>
               </div>
               <h4 class="comunicado-title">{{ item.titulo }}</h4>
@@ -155,6 +166,7 @@
 <script setup>
 import { ref, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
+import { API_URL } from '../api';
 import AppHeader from '../components/AppHeader.vue';
 import SidebarMenu from '../components/SidebarMenu.vue';
 import NotificationsDrawer from '../components/NotificationsDrawer.vue';
@@ -189,11 +201,59 @@ const avisosDestacados = ref([
   }
 ]);
 
-const comunicadosRecientes = ref([
-  { titulo: 'Mantenimiento preventivo en servidores de correo', fecha: '10:30 AM', tipo: 'Urgente' },
-  { titulo: 'Publicación de nuevos horarios para capacitaciones', fecha: 'Ayer', tipo: 'General' },
-  { titulo: 'Aviso sobre días festivos oficiales del mes', fecha: '02 Oct', tipo: 'RH' }
-]);
+// Comunicados Recientes (desde la BD, respetando la regla de visibilidad)
+const LIMITE_RECIENTES = 5;
+const comunicadosRecientes = ref([]);
+const cargandoRecientes = ref(false);
+const errorRecientes = ref('');
+let idUsuario = null;
+
+// "10:30" si es de hoy, "Ayer", o "02 oct" para fechas anteriores
+const formatearFechaCorta = (fecha) => {
+  const f = new Date(fecha);
+  const hoy = new Date();
+  const ayer = new Date();
+  ayer.setDate(hoy.getDate() - 1);
+
+  if (f.toDateString() === hoy.toDateString()) {
+    return f.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
+  }
+  if (f.toDateString() === ayer.toDateString()) return 'Ayer';
+  return f.toLocaleDateString('es-MX', { day: '2-digit', month: 'short' });
+};
+
+// Color del indicador: urgente (rojo), RH (verde) o general (azul)
+const claseDeAviso = (a) => {
+  if (a.urgente) return 'urgente';
+  if (a.categoria === 'Recursos Humanos') return 'rh';
+  return 'general';
+};
+
+const cargarRecientes = async () => {
+  if (!idUsuario) return;
+  cargandoRecientes.value = true;
+  errorRecientes.value = '';
+  try {
+    const res = await fetch(`${API_URL}/api/anuncios?id_usu=${idUsuario}&limite=${LIMITE_RECIENTES}`);
+    const data = await res.json();
+    if (!res.ok) {
+      errorRecientes.value = data.error || 'No se pudieron cargar los comunicados';
+      return;
+    }
+    comunicadosRecientes.value = data.map(a => ({
+      id: a.id_anu,
+      titulo: a.titulo,
+      fecha: formatearFechaCorta(a.fecha_creacion),
+      etiqueta: a.urgente ? 'Urgente' : a.categoria,
+      clase: claseDeAviso(a)
+    }));
+  } catch (error) {
+    console.error('Error al cargar comunicados recientes:', error);
+    errorRecientes.value = 'No se pudo conectar con el servidor';
+  } finally {
+    cargandoRecientes.value = false;
+  }
+};
 
 const nextSlide = () => {
   if (avisosDestacados.value.length > 0) {
@@ -256,9 +316,16 @@ onMounted(() => {
     try {
       const user = JSON.parse(sesion);
       usuarioNombre.value = user.nombre_completo || user.nombre || 'Usuario';
+      idUsuario = user.id_usu || null;
     } catch (e) {
       console.error(e);
     }
+  }
+
+  if (idUsuario) {
+    cargarRecientes();
+  } else {
+    errorRecientes.value = 'Inicia sesión para ver los comunicados';
   }
   startAutoSlide();
 });
@@ -525,6 +592,24 @@ onUnmounted(() => {
 }
 
 /* Lista de Comunicados Recientes */
+.comunicados-estado {
+  text-align: center;
+  font-size: 0.85rem;
+  color: #64748b;
+  padding: 1.25rem 0.5rem;
+  margin: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.comunicados-estado .link-more {
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
 .comunicados-list {
   display: flex;
   flex-direction: column;

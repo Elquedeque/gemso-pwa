@@ -143,6 +143,15 @@ app.get('/api/anuncios', async (req, res) => {
     return res.status(400).json({ error: 'Debes indicar un id_usu válido' });
   }
 
+  // ?limite=N opcional (1 a 50); sin él se devuelven todos
+  let limite = null;
+  if (req.query.limite !== undefined) {
+    limite = Number(req.query.limite);
+    if (!Number.isInteger(limite) || limite < 1 || limite > 50) {
+      return res.status(400).json({ error: 'El límite debe ser un número entre 1 y 50' });
+    }
+  }
+
   try {
     const usuario = await db.query('SELECT id_departamento FROM usuarios WHERE id_usu = $1', [idUsu]);
     if (usuario.rows.length === 0) {
@@ -167,9 +176,11 @@ app.get('/api/anuncios', async (req, res) => {
       INNER JOIN usuarios u ON a.id_autor = u.id_usu
       LEFT JOIN departamentos d ON a.id_dep_destino = d.id_dep
       WHERE ${FILTRO_VISIBLES}
-      ORDER BY a.fecha_creacion DESC;
+      ORDER BY a.fecha_creacion DESC
+      LIMIT $3;
     `;
-    const result = await db.query(query, [idUsu, usuario.rows[0].id_departamento]);
+    // LIMIT NULL en PostgreSQL equivale a "sin límite"
+    const result = await db.query(query, [idUsu, usuario.rows[0].id_departamento, limite]);
     res.json(result.rows);
   } catch (error) {
     console.error('Error al obtener anuncios:', error);
