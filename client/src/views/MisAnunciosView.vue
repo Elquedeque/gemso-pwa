@@ -40,8 +40,19 @@
         </button>
       </nav>
 
+      <!-- Estado de Carga / Error -->
+      <div v-if="cargando" class="empty-state">
+        <p>Cargando avisos...</p>
+      </div>
+
+      <div v-else-if="errorCarga" class="empty-state">
+        <h3>No se pudieron cargar los avisos</h3>
+        <p>{{ errorCarga }}</p>
+        <button class="btn-action btn-outline" @click="cargarAvisos">Reintentar</button>
+      </div>
+
       <!-- Grid Responsivo de Avisos -->
-      <section class="avisos-grid">
+      <section v-else class="avisos-grid">
         <article 
           v-for="aviso in avisosFiltrados" 
           :key="aviso.id" 
@@ -81,6 +92,7 @@
             <button 
               class="btn-action btn-solid" 
               :class="{ 'btn-read': aviso.leido }"
+              :disabled="aviso.leido || aviso.confirmando"
               @click="confirmarLectura(aviso)"
             >
               <svg v-if="aviso.leido" class="check-icon" viewBox="0 0 24 24" fill="currentColor">
@@ -93,7 +105,7 @@
       </section>
 
       <!-- Estado Vacío -->
-      <div v-if="avisosFiltrados.length === 0" class="empty-state">
+      <div v-if="!cargando && !errorCarga && avisosFiltrados.length === 0" class="empty-state">
         <svg class="empty-icon" viewBox="0 0 24 24" fill="currentColor">
           <path d="M20 12l-8.5-6v12L20 12zM4 9v6h4l5 5V4L8 9H4z"/>
         </svg>
@@ -111,6 +123,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
+import { API_URL } from '../api';
 import AppHeader from '../components/AppHeader.vue';
 import SidebarMenu from '../components/SidebarMenu.vue';
 import NotificationsDrawer from '../components/NotificationsDrawer.vue';
@@ -129,45 +142,77 @@ const listaFiltros = [
   { id: 'urgentes', nombre: 'Urgentes' }
 ];
 
-const listaAvisos = ref([
-  {
-    id: 1,
-    titulo: 'Mantenimiento en Servidores de red el Fin de Semana',
-    categoria: 'Urgente',
-    categoriaClase: 'badge-urgente',
-    tipo: 'urgentes',
-    tieneAdjunto: true,
-    leido: false
-  },
-  {
-    id: 2,
-    titulo: 'Nueva Encuesta de Clima Organizacional 2026',
-    categoria: 'T&C',
-    categoriaClase: 'badge-tyc',
-    tipo: 'area',
-    tieneAdjunto: true,
-    leido: false
-  },
-  {
-    id: 3,
-    titulo: 'Mensaje de Dirección General - Q3',
-    categoria: 'Gerente',
-    categoriaClase: 'badge-gerente',
-    tipo: 'globales',
-    tieneAdjunto: false,
-    leido: true
+const listaAvisos = ref([]);
+const cargando = ref(false);
+const errorCarga = ref('');
+let usuario = null;
+
+// Convierte una fila de la API al formato que usan las tarjetas
+const mapearAviso = (a) => {
+  // "Mi Área": dirigido a mi departamento o a mí directamente
+  const esDeMiArea = a.id_dep_destino !== null || a.id_usu_destino !== null;
+  return {
+    id: a.id_anu,
+    titulo: a.titulo,
+    categoria: a.categoria,
+    categoriaClase: a.urgente ? 'badge-urgente' : esDeMiArea ? 'badge-tyc' : 'badge-gerente',
+    urgente: a.urgente,
+    esDeMiArea,
+    tieneAdjunto: a.tiene_adjunto,
+    leido: a.leido,
+    confirmando: false
+  };
+};
+
+const cargarAvisos = async () => {
+  cargando.value = true;
+  errorCarga.value = '';
+  try {
+    const res = await fetch(`${API_URL}/api/anuncios?id_usu=${usuario.id_usu}`);
+    const data = await res.json();
+    if (!res.ok) {
+      errorCarga.value = data.error || 'Error al consultar los avisos';
+      return;
+    }
+    listaAvisos.value = data.map(mapearAviso);
+  } catch (error) {
+    console.error('Error al cargar avisos:', error);
+    errorCarga.value = 'No se pudo conectar con el servidor';
+  } finally {
+    cargando.value = false;
   }
-]);
+};
 
 const avisosFiltrados = computed(() => {
-  if (filtroActivo.value === 'todos') {
-    return listaAvisos.value;
+  switch (filtroActivo.value) {
+    case 'area': return listaAvisos.value.filter(a => a.esDeMiArea);
+    case 'globales': return listaAvisos.value.filter(a => !a.esDeMiArea);
+    case 'urgentes': return listaAvisos.value.filter(a => a.urgente);
+    default: return listaAvisos.value;
   }
-  return listaAvisos.value.filter(item => item.tipo === filtroActivo.value);
 });
 
-const confirmarLectura = (aviso) => {
-  aviso.leido = !aviso.leido;
+const confirmarLectura = async (aviso) => {
+  if (aviso.leido || aviso.confirmando) return;
+  aviso.confirmando = true;
+  try {
+    const res = await fetch(`${API_URL}/api/anuncios/${aviso.id}/leido`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id_usu: usuario.id_usu })
+    });
+    if (!res.ok) {
+      const data = await res.json();
+      alert(data.error || 'No se pudo confirmar la lectura');
+      return;
+    }
+    aviso.leido = true;
+  } catch (error) {
+    console.error('Error al confirmar lectura:', error);
+    alert('No se pudo conectar con el servidor');
+  } finally {
+    aviso.confirmando = false;
+  }
 };
 
 const verDetalleAviso = (aviso) => {
@@ -180,12 +225,16 @@ const crearAviso = () => {
 
 onMounted(() => {
   const sesion = localStorage.getItem('usuario');
-  if (sesion) {
-    const user = JSON.parse(sesion);
-    esUsuarioTyC.value = user.rol === 'TyC' || user.departamento === 'RRHH' || user.esCreador;
-  } else {
-    esUsuarioTyC.value = true; 
+  usuario = sesion ? JSON.parse(sesion) : null;
+
+  // Sin sesión no podemos saber qué avisos le corresponden
+  if (!usuario?.id_usu) {
+    router.push('/login');
+    return;
   }
+
+  esUsuarioTyC.value = usuario.rol === 'TyC' || usuario.departamento === 'RRHH' || usuario.esCreador;
+  cargarAvisos();
 });
 </script>
 

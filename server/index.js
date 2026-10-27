@@ -125,25 +125,46 @@ app.get('/api/departamentos', async (req, res) => {
   }
 });
 
-// Endpoint para obtener todos los anuncios
+// Endpoint para obtener los anuncios visibles para un usuario
+// Regla: avisos generales (sin departamento ni usuario destino)
+//        + avisos dirigidos al departamento del usuario
+//        + avisos dirigidos personalmente al usuario
 app.get('/api/anuncios', async (req, res) => {
+  const idUsu = Number(req.query.id_usu);
+
+  if (!Number.isInteger(idUsu) || idUsu <= 0) {
+    return res.status(400).json({ error: 'Debes indicar un id_usu válido' });
+  }
+
   try {
+    const usuario = await db.query('SELECT id_departamento FROM usuarios WHERE id_usu = $1', [idUsu]);
+    if (usuario.rows.length === 0) {
+      return res.status(404).json({ error: 'Usuario no encontrado' });
+    }
+
     const query = `
-      SELECT 
+      SELECT
         a.id_anu,
         a.titulo,
         a.contenido,
         a.categoria,
         a.urgente,
         a.fecha_creacion,
+        a.id_dep_destino,
+        a.id_usu_destino,
         u.nombre_completo AS autor,
-        d.nombre AS departamento_destino
+        d.nombre AS departamento_destino,
+        EXISTS (SELECT 1 FROM anuncios_adj j WHERE j.id_anu = a.id_anu) AS tiene_adjunto,
+        EXISTS (SELECT 1 FROM anuncios_leidos l WHERE l.id_anu = a.id_anu AND l.id_usu = $1) AS leido
       FROM anuncios a
       INNER JOIN usuarios u ON a.id_autor = u.id_usu
       LEFT JOIN departamentos d ON a.id_dep_destino = d.id_dep
+      WHERE (a.id_dep_destino IS NULL AND a.id_usu_destino IS NULL)
+         OR a.id_dep_destino = $2
+         OR a.id_usu_destino = $1
       ORDER BY a.fecha_creacion DESC;
     `;
-    const result = await db.query(query);
+    const result = await db.query(query, [idUsu, usuario.rows[0].id_departamento]);
     res.json(result.rows);
   } catch (error) {
     console.error('Error al obtener anuncios:', error);
@@ -192,6 +213,33 @@ app.post('/api/anuncios', async (req, res) => {
     }
     console.error('Error al publicar anuncio:', error);
     res.status(500).json({ error: 'Error interno del servidor al publicar el anuncio' });
+  }
+});
+
+// Endpoint para confirmar la lectura de un anuncio
+app.post('/api/anuncios/:id/leido', async (req, res) => {
+  const idAnu = Number(req.params.id);
+  const idUsu = Number(req.body.id_usu);
+
+  if (!Number.isInteger(idAnu) || idAnu <= 0 || !Number.isInteger(idUsu) || idUsu <= 0) {
+    return res.status(400).json({ error: 'Anuncio o usuario inválido' });
+  }
+
+  try {
+    // ON CONFLICT: si ya estaba confirmado, no se duplica (uq_usuario_anuncio)
+    await db.query(
+      `INSERT INTO anuncios_leidos (id_usu, id_anu)
+       VALUES ($1, $2)
+       ON CONFLICT (id_usu, id_anu) DO NOTHING`,
+      [idUsu, idAnu]
+    );
+    res.json({ message: 'Lectura confirmada', id_anu: idAnu, leido: true });
+  } catch (error) {
+    if (error.code === '23503') {
+      return res.status(404).json({ error: 'El anuncio o el usuario no existe' });
+    }
+    console.error('Error al confirmar lectura:', error);
+    res.status(500).json({ error: 'Error interno del servidor al confirmar la lectura' });
   }
 });
 
