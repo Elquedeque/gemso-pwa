@@ -137,6 +137,7 @@
 <script setup>
 import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
+import { API_URL } from '../api';
 
 const router = useRouter();
 const isSubmitting = ref(false);
@@ -157,7 +158,7 @@ const formulario = ref({
 // Cargar Departamentos desde PostgreSQL
 const cargarDepartamentos = async () => {
   try {
-    const res = await fetch('http://localhost:3000/api/departamentos');
+    const res = await fetch(`${API_URL}/api/departamentos`);
     if (res.ok) {
       departamentos.value = await res.json();
     }
@@ -186,7 +187,7 @@ const handleRegistro = async () => {
   isSubmitting.value = true;
 
   try {
-    const response = await fetch('http://localhost:3000/api/usuarios', {
+    const response = await fetch(`${API_URL}/api/usuarios`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(formulario.value)

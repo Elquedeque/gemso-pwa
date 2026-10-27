@@ -151,6 +151,7 @@ app.get('/api/anuncios', async (req, res) => {
   }
 });
 
-app.listen(PORT, () => {
-  console.log(`Servidor Express corriendo en http://localhost:${PORT}`);
+// Agregamos '0.0.0.0' para que escuche a cualquier dispositivo de tu red
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`Servidor Express listo para recibir conexiones en el puerto ${PORT}`);
 });

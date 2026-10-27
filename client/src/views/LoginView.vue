@@ -60,6 +60,7 @@
 <script setup>
 import { ref } from 'vue';
 import { useRouter } from 'vue-router';
+import { API_URL } from '../api';
 
 // Importación de la imagen desde client/src/assets/icon_GEMSO.png
 import logoGemso from '../assets/icon_GEMSO.png';
@@ -75,7 +76,7 @@ const handleLogin = async () => {
   cargando.value = true;
 
   try {
-    const res = await fetch('http://localhost:3000/api/login', {
+    const res = await fetch(`${API_URL}/api/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
