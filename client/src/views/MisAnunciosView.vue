@@ -233,7 +233,7 @@ onMounted(() => {
     return;
   }
 
-  esUsuarioTyC.value = usuario.rol === 'TyC' || usuario.departamento === 'RRHH' || usuario.esCreador;
+  esUsuarioTyC.value = usuario.rol === 'TyC' || usuario.departamento === 'Talento y Cultura' || usuario.esCreador;
   cargarAvisos();
 });
 </script>

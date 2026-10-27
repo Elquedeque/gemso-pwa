@@ -196,7 +196,7 @@ const avisosDestacados = ref([
     titulo: 'Nuevos Lineamientos de Comunicación Interna',
     categoria: 'Corporativo',
     fecha: 'Ayer',
-    autor: 'Recursos Humanos',
+    autor: 'Talento y Cultura',
     mediaUrl: 'https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?auto=format&fit=crop&w=1200&q=80'
   }
 ]);
@@ -222,10 +222,10 @@ const formatearFechaCorta = (fecha) => {
   return f.toLocaleDateString('es-MX', { day: '2-digit', month: 'short' });
 };
 
-// Color del indicador: urgente (rojo), RH (verde) o general (azul)
+// Color del indicador: urgente (rojo), Talento y Cultura (verde) o general (azul)
 const claseDeAviso = (a) => {
   if (a.urgente) return 'urgente';
-  if (a.categoria === 'Recursos Humanos') return 'rh';
+  if (a.categoria === 'Talento y Cultura') return 'tyc';
   return 'general';
 };
 
@@ -637,7 +637,7 @@ onUnmounted(() => {
 
 .status-indicator.urgente { background-color: #ef4444; }
 .status-indicator.general { background-color: #3b82f6; }
-.status-indicator.rh { background-color: #10b981; }
+.status-indicator.tyc { background-color: #10b981; }
 
 .comunicado-body {
   flex: 1;
@@ -661,7 +661,7 @@ onUnmounted(() => {
 
 .type-badge.urgente { color: #dc2626; }
 .type-badge.general { color: #2563eb; }
-.type-badge.rh { color: #059669; }
+.type-badge.tyc { color: #059669; }
 
 .comunicado-date {
   font-size: 0.7rem;

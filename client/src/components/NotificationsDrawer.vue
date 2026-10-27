@@ -57,7 +57,7 @@ const emit = defineEmits(['close']);
 // Datos mock para notificaciones
 const notificaciones = ref([
   {
-    titulo: 'Nuevo comunicado de RH',
+    titulo: 'Nuevo comunicado de TyC',
     descripcion: 'Se han actualizado las fechas del período vacacional 2026.',
     hora: 'Hace 10 min',
     leida: false

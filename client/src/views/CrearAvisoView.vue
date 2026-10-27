@@ -40,7 +40,7 @@
               <option value="" disabled>Selecciona una opción</option>
               <option value="Corporativo">Corporativo</option>
               <option value="Autofest 2026">Autofest 2026</option>
-              <option value="Recursos Humanos">Recursos Humanos</option>
+              <option value="Talento y Cultura">Talento y Cultura (TyC)</option>
               <option value="Sistemas / TI">Sistemas / TI</option>
               <option value="General">General</option>
             </select>
@@ -51,7 +51,7 @@
             <select id="tipo" v-model="nuevoAviso.tipo" required>
               <option value="General">General</option>
               <option value="Urgente">Urgente</option>
-              <option value="RH">RH</option>
+              <option value="TyC">TyC</option>
             </select>
           </div>
         </div>
