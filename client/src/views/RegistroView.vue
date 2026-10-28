@@ -35,8 +35,26 @@
             autocapitalize="none"
             autocorrect="off"
             spellcheck="false"
-            placeholder="usuario@gemso.com" 
-            required 
+            placeholder="usuario@gemso.com"
+            required
+          />
+        </div>
+
+        <!-- Teléfono (10 dígitos; el servidor lo guarda solo con números) -->
+        <div class="form-group">
+          <label for="telefono">Teléfono *</label>
+          <input
+            id="telefono"
+            type="tel"
+            v-model="formulario.telefono"
+            inputmode="numeric"
+            autocomplete="tel-national"
+            maxlength="10"
+            pattern="[0-9]{10}"
+            title="10 dígitos, sin espacios ni guiones"
+            placeholder="Ej. 6621234567"
+            @input="formulario.telefono = formulario.telefono.replace(/\D/g, '')"
+            required
           />
         </div>
 
@@ -152,6 +170,7 @@ const departamentos = ref([]);
 const formulario = ref({
   nombre_completo: '',
   correo: '',
+  telefono: '',
   contraseña: '',
   puesto: '',
   id_departamento: '',
@@ -180,6 +199,11 @@ const handleRegistro = async () => {
 
   if (formulario.value.contraseña !== confirmarPassword.value) {
     errorMsg.value = 'Las contraseñas no coinciden.';
+    return;
+  }
+
+  if (!/^\d{10}$/.test(formulario.value.telefono)) {
+    errorMsg.value = 'El teléfono debe tener 10 dígitos.';
     return;
   }
 
@@ -294,6 +318,7 @@ label {
 
 input[type="text"],
 input[type="email"],
+input[type="tel"],
 input[type="password"],
 input[type="date"],
 select {

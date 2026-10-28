@@ -12,6 +12,10 @@ const router = express.Router();
 // Los correos se manejan sin distinguir mayúsculas y sin espacios (ver migración 002)
 const normalizarCorreo = (correo) => String(correo ?? '').trim().toLowerCase();
 
+// El teléfono se guarda solo con dígitos: "(662) 123-4567" -> "6621234567"
+const normalizarTelefono = (telefono) => String(telefono ?? '').replace(/\D/g, '');
+const TELEFONO_VALIDO = /^\d{10}$/; // número nacional de México a 10 dígitos
+
 // Endpoint de Inicio de Sesión
 router.post('/login', async (req, res) => {
   const { contraseña } = req.body;
@@ -54,6 +58,7 @@ router.post('/login', async (req, res) => {
 // Endpoint de Registro de Usuarios
 router.post('/usuarios', async (req, res) => {
   const correo = normalizarCorreo(req.body.correo);
+  const telefono = normalizarTelefono(req.body.telefono);
   const {
     nombre_completo,
     contraseña,
@@ -64,8 +69,11 @@ router.post('/usuarios', async (req, res) => {
   } = req.body;
 
   // Validación básica de campos requeridos
-  if (!nombre_completo || !correo || !contraseña || !puesto || !id_departamento || !fecha_nacimiento || !fecha_ingreso) {
+  if (!nombre_completo || !correo || !telefono || !contraseña || !puesto || !id_departamento || !fecha_nacimiento || !fecha_ingreso) {
     return res.status(400).json({ error: 'Todos los campos son obligatorios' });
+  }
+  if (!TELEFONO_VALIDO.test(telefono)) {
+    return res.status(400).json({ error: 'El teléfono debe tener 10 dígitos' });
   }
 
   try {
@@ -78,6 +86,7 @@ router.post('/usuarios', async (req, res) => {
     // 2. Insertar en la base de datos PostgreSQL.
     //    En la misma sentencia (atómica): si el usuario es de Talento y Cultura,
     //    se le asigna el permiso de publicar avisos (regla de la beta).
+    //    La sucursal toma su valor por defecto "GEMSO" (ver migración 004).
     const query = `
       WITH nuevo AS (
         INSERT INTO usuarios (
@@ -87,9 +96,10 @@ router.post('/usuarios', async (req, res) => {
           puesto,
           id_departamento,
           fecha_nacimiento,
-          fecha_ingreso
+          fecha_ingreso,
+          telefono
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $9)
         RETURNING id_usu, nombre_completo, correo, id_departamento
       ),
       permiso_tyc AS (
@@ -111,7 +121,8 @@ router.post('/usuarios', async (req, res) => {
       id_departamento,
       fecha_nacimiento,
       fecha_ingreso,
-      PERMISO_PUBLICAR_AVISOS
+      PERMISO_PUBLICAR_AVISOS,
+      telefono
     ];
 
     const result = await db.query(query, values);
