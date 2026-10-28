@@ -16,6 +16,7 @@ const healthRoutes = require('./routes/health');
 const authRoutes = require('./routes/auth');
 const departamentosRoutes = require('./routes/departamentos');
 const anunciosRoutes = require('./routes/anuncios');
+const perfilRoutes = require('./routes/perfil');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -27,6 +28,7 @@ app.use('/api/health', healthRoutes);
 app.use('/api', authRoutes); // /api/login y /api/usuarios
 app.use('/api/departamentos', departamentosRoutes);
 app.use('/api/anuncios', anunciosRoutes);
+app.use('/api/perfil', perfilRoutes);
 
 // Agregamos '0.0.0.0' para que escuche a cualquier dispositivo de tu red
 app.listen(PORT, '0.0.0.0', () => {

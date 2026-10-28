@@ -13,26 +13,31 @@
         <p class="subtitle">Información personal y de tu cuenta laboral</p>
       </header>
 
-      <div class="profile-layout">
-        <!-- Tarjeta Resumen / Avatar -->
+      <!-- Estado de Carga / Error -->
+      <div v-if="cargando" class="estado-box">
+        <p>Cargando perfil...</p>
+      </div>
+
+      <div v-else-if="errorCarga" class="estado-box">
+        <h3>{{ errorCarga }}</h3>
+        <button class="retry-btn" @click="cargarPerfil">Reintentar</button>
+      </div>
+
+      <div v-else-if="perfil" class="profile-layout">
+        <!-- Tarjeta Resumen / Avatar (iniciales, no depende de servicios externos) -->
         <aside class="profile-card hero-card">
           <div class="avatar-wrapper">
-            <img :src="usuario.avatar" :alt="usuario.nombre" class="avatar-img" />
+            <div class="avatar-img" :aria-label="perfil.nombre_completo">{{ iniciales }}</div>
             <span class="status-badge" title="Activo"></span>
           </div>
-          <h3 class="user-name">{{ usuario.nombre }}</h3>
-          <p class="user-role">{{ usuario.puesto }}</p>
-          <span class="department-tag">{{ usuario.departamento }}</span>
+          <h3 class="user-name">{{ perfil.nombre_completo }}</h3>
+          <p class="user-role">{{ mostrar(perfil.puesto) }}</p>
+          <span class="department-tag">{{ mostrar(perfil.departamento) }}</span>
 
           <div class="quick-stats">
             <div class="stat-item">
-              <span class="stat-value">{{ usuario.antiguedad }}</span>
+              <span class="stat-value">{{ antiguedad }}</span>
               <span class="stat-label">Antigüedad</span>
-            </div>
-            <div class="stat-divider"></div>
-            <div class="stat-item">
-              <span class="stat-value">{{ usuario.expediente }}</span>
-              <span class="stat-label">N° Empleado</span>
             </div>
           </div>
         </aside>
@@ -50,19 +55,19 @@
             <div class="info-grid">
               <div class="info-item">
                 <label>Nombre Completo</label>
-                <p>{{ usuario.nombre }}</p>
+                <p>{{ perfil.nombre_completo }}</p>
               </div>
               <div class="info-item">
                 <label>Correo Electrónico</label>
-                <p>{{ usuario.correo }}</p>
+                <p>{{ perfil.correo }}</p>
               </div>
               <div class="info-item">
                 <label>Teléfono de Contacto</label>
-                <p>{{ usuario.telefono }}</p>
+                <p :class="{ 'sin-dato': !perfil.telefono }">{{ telefonoTexto }}</p>
               </div>
               <div class="info-item">
-                <label>Ubicación / Sucursal</label>
-                <p>{{ usuario.sucursal }}</p>
+                <label>Sucursal</label>
+                <p :class="{ 'sin-dato': !perfil.sucursal }">{{ mostrar(perfil.sucursal) }}</p>
               </div>
             </div>
           </article>
@@ -78,19 +83,16 @@
             <div class="info-grid">
               <div class="info-item">
                 <label>Empresa</label>
-                <p>{{ usuario.empresa }}</p>
+                <!-- Pendiente: manejar las empresas del grupo (Autos de Hermosillo, Autos Bálticos, etc.) -->
+                <p>GEMSO</p>
               </div>
               <div class="info-item">
-                <label>Jefe Inmediato</label>
-                <p>{{ usuario.jefeInmediato }}</p>
+                <label>Gerente</label>
+                <p :class="{ 'sin-dato': !perfil.gerente }">{{ mostrar(perfil.gerente) }}</p>
               </div>
               <div class="info-item">
                 <label>Fecha de Ingreso</label>
-                <p>{{ usuario.fechaIngreso }}</p>
-              </div>
-              <div class="info-item">
-                <label>Tipo de Contrato</label>
-                <p>{{ usuario.tipoContrato }}</p>
+                <p>{{ fechaIngresoTexto }}</p>
               </div>
             </div>
           </article>
@@ -105,29 +107,87 @@
 </template>
 
 <script setup>
-import { ref } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import AppHeader from '../components/AppHeader.vue';
 import SidebarMenu from '../components/SidebarMenu.vue';
 import NotificationsDrawer from '../components/NotificationsDrawer.vue';
+import { apiFetch } from '../api';
 
 const isMenuOpen = ref(false);
 const isNotificationsOpen = ref(false);
 
-const usuario = ref({
-  nombre: 'Francisco Alberto Salazar Figueroa',
-  puesto: 'Practicante de Desarrollo PWA',
-  departamento: 'Tecnologías de la Información',
-  empresa: 'GEMSO',
-  correo: 'francisco.salazar@gemso.com.mx',
-  telefono: '+52 (662) 123-4567',
-  sucursal: 'Hermosillo, Sonora',
-  antiguedad: '6 meses',
-  expediente: 'EMP-9042',
-  jefeInmediato: 'Ing. Supervisor T&C',
-  fechaIngreso: '01 Mar 2026',
-  tipoContrato: 'Residencia Profesional',
-  avatar: 'https://ui-avatars.com/api/?name=Francisco+Salazar&background=000080&color=ffffff&size=128'
+// Datos que devuelve GET /api/perfil (ver server/routes/perfil.js)
+const perfil = ref(null);
+const cargando = ref(false);
+const errorCarga = ref('');
+
+// Texto para campos opcionales que aún no se capturan en la BD
+const mostrar = (valor) => valor || 'No registrado';
+
+// Convierte 'YYYY-MM-DD' en una fecha local (sin desfase por zona horaria)
+const aFecha = (texto) => {
+  const [anio, mes, dia] = texto.split('-').map(Number);
+  return new Date(anio, mes - 1, dia);
+};
+
+// Iniciales para el avatar: primera letra del primer y segundo nombre/apellido
+const iniciales = computed(() => {
+  const partes = (perfil.value?.nombre_completo || '').trim().split(/\s+/);
+  return partes.slice(0, 2).map(p => p[0]?.toUpperCase() || '').join('');
 });
+
+// El teléfono se guarda con 10 dígitos; se muestra como "662 123 4567"
+const telefonoTexto = computed(() => {
+  const tel = perfil.value?.telefono;
+  if (!tel) return 'No registrado';
+  return /^\d{10}$/.test(tel) ? `${tel.slice(0, 3)} ${tel.slice(3, 6)} ${tel.slice(6)}` : tel;
+});
+
+// Ej. "27 jul 2026"
+const fechaIngresoTexto = computed(() => {
+  if (!perfil.value?.fecha_ingreso) return 'No registrado';
+  return aFecha(perfil.value.fecha_ingreso).toLocaleDateString('es-MX', {
+    day: '2-digit', month: 'short', year: 'numeric'
+  });
+});
+
+// Antigüedad desde la fecha de ingreso, ej. "3 meses", "1 año 2 meses"
+const antiguedad = computed(() => {
+  if (!perfil.value?.fecha_ingreso) return '—';
+  const ingreso = aFecha(perfil.value.fecha_ingreso);
+  const hoy = new Date();
+  let meses = (hoy.getFullYear() - ingreso.getFullYear()) * 12 + (hoy.getMonth() - ingreso.getMonth());
+  if (hoy.getDate() < ingreso.getDate()) meses--; // aún no se cumple el mes en curso
+  if (meses < 1) return 'Menos de 1 mes';
+
+  const anios = Math.floor(meses / 12);
+  const resto = meses % 12;
+  const partes = [];
+  if (anios) partes.push(`${anios} ${anios === 1 ? 'año' : 'años'}`);
+  if (resto) partes.push(`${resto} ${resto === 1 ? 'mes' : 'meses'}`);
+  return partes.join(' ');
+});
+
+const cargarPerfil = async () => {
+  cargando.value = true;
+  errorCarga.value = '';
+  try {
+    const res = await apiFetch('/api/perfil');
+    const data = await res.json();
+    if (!res.ok) {
+      errorCarga.value = data.error || 'No se pudo cargar el perfil';
+      return;
+    }
+    perfil.value = data;
+  } catch (error) {
+    console.error('Error al cargar el perfil:', error);
+    errorCarga.value = 'No se pudo conectar con el servidor';
+  } finally {
+    cargando.value = false;
+  }
+};
+
+onMounted(cargarPerfil);
 </script>
 
 <style scoped>
@@ -205,8 +265,16 @@ const usuario = ref({
   width: 100px;
   height: 100px;
   border-radius: 50%;
-  object-fit: cover;
   border: 4px solid var(--brand-primary, #000080);
+  box-sizing: border-box;
+  background-color: var(--brand-primary, #000080);
+  color: #ffffff;
+  font-size: 2rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  user-select: none;
 }
 
 .status-badge {
@@ -268,10 +336,36 @@ const usuario = ref({
   color: var(--text-secondary, #64748b);
 }
 
-.stat-divider {
-  width: 1px;
-  height: 28px;
-  background-color: var(--border-color, #e2e8f0);
+/* Campo opcional sin capturar */
+.info-item p.sin-dato {
+  color: var(--text-secondary, #64748b);
+  font-style: italic;
+}
+
+/* Estados de carga / error */
+.estado-box {
+  text-align: center;
+  padding: 3rem 1rem;
+  color: var(--text-secondary, #475569);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.estado-box h3 {
+  margin: 0;
+  color: var(--text-primary, #0f172a);
+}
+
+.retry-btn {
+  background-color: var(--brand-primary, #000080);
+  color: #ffffff;
+  border: none;
+  border-radius: 8px;
+  padding: 0.5rem 1.25rem;
+  font-weight: 600;
+  cursor: pointer;
 }
 
 /* Detalle de Secciones */
