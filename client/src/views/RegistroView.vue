@@ -284,7 +284,7 @@ const handleRegistro = async () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background-color: #f1f5f9;
+  background-color: var(--bg-primary, #f1f5f9);
   padding: 1.5rem 1rem;
   box-sizing: border-box;
 }
@@ -292,11 +292,11 @@ const handleRegistro = async () => {
 .auth-card {
   width: 100%;
   max-width: 520px;
-  background: #ffffff;
+  background: var(--bg-surface, #ffffff);
   border-radius: 20px;
   padding: 2rem 1.75rem;
   box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05);
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--border-color, #e2e8f0);
 }
 
 .auth-header {
@@ -307,7 +307,7 @@ const handleRegistro = async () => {
 .brand-logo h1 {
   font-size: 1.8rem;
   font-weight: 900;
-  color: #000080;
+  color: var(--brand-primary, #000080);
   letter-spacing: 2px;
   margin: 0 0 0.5rem 0;
 }
@@ -315,13 +315,13 @@ const handleRegistro = async () => {
 .auth-header h2 {
   font-size: 1.35rem;
   font-weight: 700;
-  color: #0f172a;
+  color: var(--text-primary, #0f172a);
   margin: 0;
 }
 
 .subtitle {
   font-size: 0.825rem;
-  color: #64748b;
+  color: var(--text-secondary, #64748b);
   margin: 0.25rem 0 0 0;
 }
 
@@ -352,7 +352,7 @@ const handleRegistro = async () => {
 label {
   font-size: 0.825rem;
   font-weight: 600;
-  color: #334155;
+  color: var(--text-primary, #334155);
 }
 
 input[type="text"],
@@ -363,11 +363,11 @@ input[type="date"],
 select {
   width: 100%;
   padding: 0.7rem 0.85rem;
-  border: 1px solid #cbd5e1;
+  border: 1px solid var(--border-color, #cbd5e1);
   border-radius: 10px;
   font-size: 0.875rem;
-  background-color: #f8fafc;
-  color: #0f172a;
+  background-color: var(--bg-input, #f8fafc);
+  color: var(--text-primary, #0f172a);
   box-sizing: border-box;
   outline: none;
   transition: all 0.2s ease;
@@ -375,13 +375,13 @@ select {
 
 input:focus,
 select:focus {
-  border-color: #000080;
-  background-color: #ffffff;
+  border-color: var(--brand-primary, #000080);
+  background-color: var(--bg-surface, #ffffff);
   box-shadow: 0 0 0 3px rgba(0, 0, 128, 0.1);
 }
 
 .error-text {
-  color: #ef4444;
+  color: var(--color-danger, #ef4444);
   font-size: 0.8rem;
   font-weight: 600;
   margin: 0;
@@ -389,7 +389,7 @@ select:focus {
 }
 
 .submit-btn {
-  background: #000080;
+  background: var(--brand-primary, #000080);
   color: #ffffff;
   border: none;
   padding: 0.85rem;
@@ -412,11 +412,11 @@ select:focus {
   gap: 0.4rem;
   margin-top: 0.75rem;
   font-size: 0.85rem;
-  color: #64748b;
+  color: var(--text-secondary, #64748b);
 }
 
 .login-link {
-  color: #000080;
+  color: var(--brand-primary, #000080);
   font-weight: 700;
   text-decoration: none;
 }

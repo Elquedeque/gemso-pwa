@@ -269,20 +269,27 @@ onMounted(cargarDatos);
 .field-input {
   width: 100%;
   padding: 0.7rem 0.85rem;
-  border: 1px solid #cbd5e1;
+  border: 1px solid var(--border-color, #cbd5e1);
   border-radius: 10px;
   font-size: 0.875rem;
-  background-color: #f8fafc;
-  color: #0f172a;
+  font-family: inherit;
+  background-color: var(--bg-input, #f8fafc);
+  color: var(--text-primary, #0f172a);
   box-sizing: border-box;
   outline: none;
   transition: all 0.2s ease;
 }
 
 .field-input:focus {
-  border-color: #000080;
-  background-color: #ffffff;
-  box-shadow: 0 0 0 3px rgba(0, 0, 128, 0.1);
+  border-color: var(--brand-primary, #000080);
+  background-color: var(--bg-surface, #ffffff);
+  /* color-mix: el halo toma el azul de marca del tema activo */
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand-primary, #000080) 20%, transparent);
+}
+
+.field-input::placeholder {
+  color: var(--text-secondary, #64748b);
+  opacity: 0.7;
 }
 
 .locked-note {
@@ -294,7 +301,7 @@ onMounted(cargarDatos);
 
 .error-text {
   margin: 0;
-  color: #dc2626;
+  color: var(--color-danger, #dc2626);
   font-size: 0.85rem;
   font-weight: 500;
 }
@@ -324,7 +331,7 @@ onMounted(cargarDatos);
 }
 
 .save-btn {
-  background: #000080;
+  background: var(--brand-primary, #000080);
   color: #ffffff;
   border: none;
 }

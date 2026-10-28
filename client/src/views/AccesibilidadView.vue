@@ -117,7 +117,13 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref } from 'vue';
+import {
+  leerPreferencias,
+  aplicarModoOscuro,
+  aplicarTamanoLetra,
+  aplicarAltoContraste
+} from '../utils/tema';
 import { useRouter } from 'vue-router';
 import AppHeader from '../components/AppHeader.vue';
 import SidebarMenu from '../components/SidebarMenu.vue';
@@ -126,56 +132,20 @@ import NotificationsDrawer from '../components/NotificationsDrawer.vue';
 const router = useRouter();
 const isMenuOpen = ref(false);
 const isNotificationsOpen = ref(false);
-const isDarkMode = ref(false);
-const fontSize = ref('normal');
-const highContrast = ref(false);
-
-onMounted(() => {
-  if (typeof window !== 'undefined') {
-    const savedTheme = localStorage.getItem('theme');
-    if (savedTheme === 'dark' || document.documentElement.classList.contains('dark')) {
-      isDarkMode.value = true;
-    }
-
-    const savedSize = localStorage.getItem('fontSize');
-    if (savedSize) {
-      fontSize.value = savedSize;
-    }
-
-    highContrast.value = localStorage.getItem('highContrast') === 'true';
-  }
-});
+// Valores iniciales: lo que el usuario eligió antes (ver utils/tema.js)
+const preferencias = leerPreferencias();
+const isDarkMode = ref(preferencias.oscuro);
+const fontSize = ref(preferencias.tamanoLetra);
+const highContrast = ref(preferencias.altoContraste);
 
 const setDarkMode = (enableDark) => {
   isDarkMode.value = enableDark;
-  if (enableDark) {
-    document.documentElement.classList.add('dark');
-    localStorage.setItem('theme', 'dark');
-  } else {
-    document.documentElement.classList.remove('dark');
-    localStorage.setItem('theme', 'light');
-  }
+  aplicarModoOscuro(enableDark);
 };
 
-const updateFontSize = () => {
-  localStorage.setItem('fontSize', fontSize.value);
-  if (fontSize.value === 'grande') {
-    document.documentElement.style.fontSize = '110%';
-  } else if (fontSize.value === 'muy-grande') {
-    document.documentElement.style.fontSize = '120%';
-  } else {
-    document.documentElement.style.fontSize = '100%';
-  }
-};
+const updateFontSize = () => aplicarTamanoLetra(fontSize.value);
 
-const toggleHighContrast = () => {
-  localStorage.setItem('highContrast', highContrast.value);
-  if (highContrast.value) {
-    document.documentElement.classList.add('high-contrast');
-  } else {
-    document.documentElement.classList.remove('high-contrast');
-  }
-};
+const toggleHighContrast = () => aplicarAltoContraste(highContrast.value);
 </script>
 
 <style scoped>
@@ -303,6 +273,7 @@ const toggleHighContrast = () => {
   flex-direction: column;
 }
 
+/* Las vistas previas usan colores fijos: deben verse igual en ambos temas */
 .light-preview {
   background: #f1f5f9;
 }

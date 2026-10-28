@@ -175,15 +175,15 @@ const isNotificationsOpen = ref(false);
   font-weight: 700;
   padding: 0.25rem 0.65rem;
   border-radius: 20px;
-  background-color: #e0e7ff;
+  background-color: var(--tint-brand-bg, #e0e7ff);
   color: var(--brand-primary, #000080);
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
 
 .card-badge.systems {
-  background-color: #f1f5f9;
-  color: #475569;
+  background-color: var(--bg-primary, #f1f5f9);
+  color: var(--text-secondary, #475569);
 }
 
 .card-header {

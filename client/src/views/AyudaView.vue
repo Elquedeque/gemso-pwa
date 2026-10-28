@@ -282,7 +282,7 @@ const enviarReporte = () => {
   padding: 0.75rem 0.85rem;
   border-radius: 10px;
   border: 1px solid var(--border-color, #cbd5e1);
-  background-color: var(--bg-surface, #ffffff);
+  background-color: var(--bg-input, #f8fafc);
   color: var(--text-primary, #0f172a);
   font-size: 0.9rem;
   box-sizing: border-box;
@@ -326,9 +326,9 @@ const enviarReporte = () => {
   display: flex;
   align-items: flex-start;
   gap: 0.75rem;
-  background-color: #f0fdf4;
-  border: 1px solid #bbf7d0;
-  color: #166534;
+  background-color: var(--tint-green-bg, #f0fdf4);
+  border: 1px solid var(--tint-green-border, #bbf7d0);
+  color: var(--tint-green-text, #166534);
   padding: 1rem;
   border-radius: 12px;
 }
@@ -421,9 +421,10 @@ const enviarReporte = () => {
 }
 
 .faq-answer {
-  font-size: 0.825rem;
-  color: var(--text-secondary, #64748b);
+  font-size: 0.85rem;
+  /* Texto principal un poco atenuado: más legible que el gris secundario en ambos temas */
+  color: color-mix(in srgb, var(--text-primary, #0f172a) 85%, transparent);
   margin: 0.5rem 0 0 0;
-  line-height: 1.4;
+  line-height: 1.5;
 }
 </style>

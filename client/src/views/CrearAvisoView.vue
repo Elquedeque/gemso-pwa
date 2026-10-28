@@ -248,9 +248,9 @@ const publicarAviso = async () => {
 }
 
 .back-btn {
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
-  color: #475569;
+  background: var(--bg-surface, #ffffff);
+  border: 1px solid var(--border-color, #e2e8f0);
+  color: var(--text-secondary, #475569);
   width: 40px;
   height: 40px;
   border-radius: 10px;
@@ -312,7 +312,7 @@ const publicarAviso = async () => {
 label {
   font-size: 0.875rem;
   font-weight: 600;
-  color: #1e293b;
+  color: var(--text-primary, #1e293b);
 }
 
 input[type="text"],
@@ -320,11 +320,11 @@ select,
 textarea {
   width: 100%;
   padding: 0.75rem 0.9rem;
-  border: 1px solid #cbd5e1;
+  border: 1px solid var(--border-color, #cbd5e1);
   border-radius: 8px;
   font-size: 0.9rem;
-  background-color: #f8fafc;
-  color: #0f172a;
+  background-color: var(--bg-input, #f8fafc);
+  color: var(--text-primary, #0f172a);
   box-sizing: border-box;
   outline: none;
   transition: border-color 0.2s ease, background-color 0.2s ease;
@@ -334,7 +334,7 @@ input[type="text"]:focus,
 select:focus,
 textarea:focus {
   border-color: var(--brand-primary, #000080);
-  background-color: #ffffff;
+  background-color: var(--bg-surface, #ffffff);
 }
 
 /* Toggle switch para destacado */
@@ -343,9 +343,9 @@ textarea:focus {
   align-items: center;
   justify-content: space-between;
   padding: 0.9rem 1rem;
-  background-color: #f1f5f9;
+  background-color: var(--bg-primary, #f1f5f9);
   border-radius: 10px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--border-color, #e2e8f0);
 }
 
 .checkbox-info {
@@ -363,7 +363,7 @@ textarea:focus {
 
 .checkbox-info span {
   font-size: 0.75rem;
-  color: #64748b;
+  color: var(--text-secondary, #64748b);
   margin-top: 0.15rem;
 }
 
@@ -383,14 +383,14 @@ textarea:focus {
 }
 
 .image-upload-box {
-  border: 2px dashed #cbd5e1;
+  border: 2px dashed var(--border-color, #cbd5e1);
   border-radius: 12px;
   padding: 1.5rem;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  background: #f8fafc;
+  background: var(--bg-primary, #f8fafc);
   cursor: pointer;
   position: relative;
   min-height: 140px;
@@ -399,7 +399,7 @@ textarea:focus {
 
 .image-upload-box:hover {
   border-color: var(--brand-primary, #000080);
-  background-color: #f0f4ff;
+  background-color: var(--tint-brand-bg, #f0f4ff);
 }
 
 .image-upload-box.has-image {
@@ -411,19 +411,19 @@ textarea:focus {
 .upload-icon {
   width: 32px;
   height: 32px;
-  color: #64748b;
+  color: var(--text-secondary, #64748b);
 }
 
 .upload-text {
   font-size: 0.875rem;
   font-weight: 600;
-  color: #1e293b;
+  color: var(--text-primary, #1e293b);
   margin-top: 0.4rem;
 }
 
 .upload-sub {
   font-size: 0.725rem;
-  color: #94a3b8;
+  color: var(--text-secondary, #94a3b8);
   margin-top: 0.1rem;
 }
 
@@ -457,8 +457,8 @@ textarea:focus {
 
 .cancel-btn {
   background: transparent;
-  border: 1px solid #cbd5e1;
-  color: #475569;
+  border: 1px solid var(--border-color, #cbd5e1);
+  color: var(--text-secondary, #475569);
   padding: 0.75rem 1.25rem;
   border-radius: 10px;
   font-weight: 600;

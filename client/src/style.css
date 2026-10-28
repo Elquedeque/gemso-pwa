@@ -8,8 +8,20 @@
   --bg-surface: #ffffff;        
   --text-primary: #0f172a;      
   --text-secondary: #475569;    
-  --border-color: #cbd5e1;      
-  
+  --border-color: #cbd5e1;
+  --bg-input: #f8fafc;          /* fondo de inputs y selects */
+  --color-danger: #dc2626;      /* mensajes de error */
+
+  /* Tintes: fondos suaves para etiquetas, íconos y alertas, y su texto */
+  --tint-blue-bg: #eff6ff;
+  --tint-blue-text: #2563eb;
+  --tint-green-bg: #f0fdf4;
+  --tint-green-text: #15803d;
+  --tint-green-border: #bbf7d0;
+  --tint-red-bg: #fef2f2;
+  --tint-red-border: #fecaca;
+  --tint-brand-bg: #e0e7ff;
+
   /* Identidad de Marca GEMSO */
   --brand-primary: #000080;     
   --brand-accent: #0284c7;      
@@ -28,11 +40,31 @@ html.dark {
   --text-primary: #f8fafc;
   --text-secondary: #94a3b8;
   --border-color: #334155;
-  --brand-primary: #000080;
+  --bg-input: #0f172a;
+  --color-danger: #f87171;
+  /* En oscuro los tintes son translúcidos para no "brillar" sobre el fondo */
+  --tint-blue-bg: rgba(59, 130, 246, 0.15);
+  --tint-blue-text: #60a5fa;
+  --tint-green-bg: rgba(34, 197, 94, 0.14);
+  --tint-green-text: #4ade80;
+  --tint-green-border: rgba(34, 197, 94, 0.35);
+  --tint-red-bg: rgba(239, 68, 68, 0.14);
+  --tint-red-border: rgba(239, 68, 68, 0.35);
+  --tint-brand-bg: rgba(91, 124, 250, 0.18);
+  /* El azul marino de marca (#000080) casi no se ve sobre fondo oscuro:
+     se usa un azul más claro que sigue siendo legible con texto blanco encima */
+  --brand-primary: #5b7cfa;
   --brand-accent: #38bdf8;
   --sidebar-bg: #030712;
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
   --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4);
+}
+
+/* Durante el cambio de tema todo cambia a la vez (ver utils/tema.js) */
+html.sin-transiciones *,
+html.sin-transiciones *::before,
+html.sin-transiciones *::after {
+  transition: none !important;
 }
 
 /* Reset y base global */

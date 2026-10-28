@@ -16,7 +16,7 @@ html, body {
   padding: 0;
   height: 100%;
   width: 100%;
-  background-color: #0f172a; /* Mismo fondo oscuro para evitar bordes o destellos blancos */
+  background-color: var(--bg-primary); /* cambia con el tema (style.css) */
   overflow-x: hidden;
 }
 

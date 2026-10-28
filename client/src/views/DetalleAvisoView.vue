@@ -288,19 +288,19 @@ onMounted(() => {
 .section-label {
   font-size: 1.25rem;
   font-weight: 700;
-  color: #0f172a;
+  color: var(--text-primary, #0f172a);
 }
 
 .aviso-title {
   font-size: 1.75rem;
   font-weight: 800;
   margin: 0.2rem 0;
-  color: #0f172a;
+  color: var(--text-primary, #0f172a);
 }
 
 .aviso-origen {
   font-size: 1rem;
-  color: #475569;
+  color: var(--text-secondary, #475569);
   margin: 0;
 }
 
@@ -308,7 +308,7 @@ onMounted(() => {
 .aviso-content {
   font-size: 0.95rem;
   line-height: 1.5;
-  color: #1e293b;
+  color: var(--text-primary, #1e293b);
   text-align: justify;
 }
 
@@ -318,8 +318,8 @@ onMounted(() => {
 
 /* Tarjeta de Adjuntos */
 .attachments-card {
-  background: #e2e8f0;
-  border: 1px solid #94a3b8;
+  background: var(--bg-primary, #e2e8f0);
+  border: 1px solid var(--border-color, #94a3b8);
   border-radius: 12px;
   padding: 0.85rem;
   display: flex;
@@ -342,14 +342,14 @@ onMounted(() => {
 .file-svg {
   width: 28px;
   height: 28px;
-  color: #0f172a;
+  color: var(--text-primary, #0f172a);
 }
 
 .file-name {
   flex: 1;
   font-size: 0.85rem;
   font-weight: 600;
-  color: #0f172a;
+  color: var(--text-primary, #0f172a);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -366,7 +366,7 @@ onMounted(() => {
   border: none;
   cursor: pointer;
   padding: 0.2rem;
-  color: #0f172a;
+  color: var(--text-primary, #0f172a);
   transition: transform 0.15 ease;
 }
 
@@ -388,7 +388,7 @@ onMounted(() => {
 }
 
 .btn-confirm-read {
-  background-color: #000080;
+  background-color: var(--brand-primary, #000080);
   color: #ffffff;
   border: none;
   border-radius: 25px;
@@ -419,7 +419,7 @@ onMounted(() => {
 .estado-box {
   text-align: center;
   padding: 3rem 1rem;
-  color: #475569;
+  color: var(--text-secondary, #475569);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -428,6 +428,6 @@ onMounted(() => {
 
 .estado-box h3 {
   margin: 0;
-  color: #0f172a;
+  color: var(--text-primary, #0f172a);
 }
 </style>

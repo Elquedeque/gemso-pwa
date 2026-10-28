@@ -124,7 +124,7 @@
   width: 16px;
   height: 16px;
   background-color: #22c55e;
-  border: 2px solid #ffffff;
+  border: 2px solid var(--bg-surface, #ffffff); /* se funde con la tarjeta en ambos temas */
   border-radius: 50%;
 }
 

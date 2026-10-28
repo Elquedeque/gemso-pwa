@@ -334,7 +334,7 @@ const descargarDocumento = (doc) => {
   width: 42px;
   height: 42px;
   border-radius: 10px;
-  background-color: #fee2e2;
+  background-color: var(--tint-red-bg, #fee2e2);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -355,19 +355,19 @@ const descargarDocumento = (doc) => {
   font-weight: 700;
   padding: 0.25rem 0.65rem;
   border-radius: 20px;
-  background-color: #f1f5f9;
-  color: #475569;
+  background-color: var(--bg-primary, #f1f5f9);
+  color: var(--text-secondary, #475569);
   text-transform: uppercase;
 }
 
 .category-badge.laborales {
-  background-color: #e0e7ff;
+  background-color: var(--tint-brand-bg, #e0e7ff);
   color: var(--brand-primary, #000080);
 }
 
 .category-badge.nomina {
-  background-color: #dcfce7;
-  color: #15803d;
+  background-color: var(--tint-green-bg, #dcfce7);
+  color: var(--tint-green-text, #15803d);
 }
 
 .doc-info {

@@ -340,8 +340,8 @@ onUnmounted(() => {
 .dashboard-container {
   min-height: 100vh;
   width: 100%;
-  background-color: #f8fafc;
-  color: #0f172a;
+  background-color: var(--bg-primary, #f8fafc);
+  color: var(--text-primary, #0f172a);
   display: flex;
   flex-direction: column;
 }
@@ -369,26 +369,26 @@ onUnmounted(() => {
   font-size: 1.35rem;
   font-weight: 700;
   margin: 0;
-  color: #0f172a;
+  color: var(--text-primary, #0f172a);
 }
 
 .greeting-text span {
-  color: #000080;
+  color: var(--brand-primary, #000080);
 }
 
 .greeting-text p {
   margin: 0.15rem 0 0 0;
   font-size: 0.825rem;
-  color: #64748b;
+  color: var(--text-secondary, #64748b);
 }
 
 .tv-mode-btn {
   display: flex;
   align-items: center;
   gap: 0.35rem;
-  background: #ffffff;
-  border: 1px solid #cbd5e1;
-  color: #475569;
+  background: var(--bg-surface, #ffffff);
+  border: 1px solid var(--border-color, #cbd5e1);
+  color: var(--text-secondary, #475569);
   padding: 0.45rem 0.75rem;
   border-radius: 8px;
   font-size: 0.75rem;
@@ -409,8 +409,8 @@ onUnmounted(() => {
 }
 
 .nav-card {
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
+  background: var(--bg-surface, #ffffff);
+  border: 1px solid var(--border-color, #e2e8f0);
   border-radius: 12px;
   padding: 0.85rem;
   display: flex;
@@ -441,8 +441,8 @@ onUnmounted(() => {
   height: 20px;
 }
 
-.doc-color { background-color: #eff6ff; color: #2563eb; }
-.avisos-color { background-color: #f0fdf4; color: #16a34a; }
+.doc-color { background-color: var(--tint-blue-bg, #eff6ff); color: var(--tint-blue-text, #2563eb); }
+.avisos-color { background-color: var(--tint-green-bg, #f0fdf4); color: var(--tint-green-text, #16a34a); }
 
 .nav-info {
   display: flex;
@@ -453,12 +453,12 @@ onUnmounted(() => {
 .nav-title {
   font-size: 0.875rem;
   font-weight: 700;
-  color: #0f172a;
+  color: var(--text-primary, #0f172a);
 }
 
 .nav-sub {
   font-size: 0.7rem;
-  color: #64748b;
+  color: var(--text-secondary, #64748b);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -476,11 +476,11 @@ onUnmounted(() => {
   font-size: 1rem;
   font-weight: 700;
   margin: 0;
-  color: #0f172a;
+  color: var(--text-primary, #0f172a);
 }
 
 .badge-live {
-  background: #000080;
+  background: var(--brand-primary, #000080);
   color: #ffffff;
   font-size: 0.65rem;
   font-weight: 700;
@@ -492,7 +492,7 @@ onUnmounted(() => {
 .link-more {
   font-size: 0.8rem;
   font-weight: 600;
-  color: #000080;
+  color: var(--brand-primary, #000080);
   text-decoration: none;
 }
 
@@ -503,8 +503,8 @@ onUnmounted(() => {
 
 .featured-card {
   position: relative;
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
+  background: var(--bg-surface, #ffffff);
+  border: 1px solid var(--border-color, #e2e8f0);
   border-radius: 14px;
   overflow: hidden;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
@@ -550,7 +550,7 @@ onUnmounted(() => {
   margin: 0 0 0.5rem 0;
   font-size: 1.05rem;
   font-weight: 700;
-  color: #0f172a;
+  color: var(--text-primary, #0f172a);
   line-height: 1.35;
 }
 
@@ -559,11 +559,11 @@ onUnmounted(() => {
   align-items: center;
   gap: 0.4rem;
   font-size: 0.75rem;
-  color: #64748b;
+  color: var(--text-secondary, #64748b);
 }
 
 .meta-dot {
-  color: #cbd5e1;
+  color: var(--border-color, #cbd5e1);
 }
 
 /* Dots */
@@ -579,14 +579,14 @@ onUnmounted(() => {
   height: 7px;
   border-radius: 50%;
   border: none;
-  background: #cbd5e1;
+  background: var(--border-color, #cbd5e1);
   cursor: pointer;
   padding: 0;
   transition: all 0.2s ease;
 }
 
 .dot-btn.active {
-  background: #000080;
+  background: var(--brand-primary, #000080);
   width: 18px;
   border-radius: 10px;
 }
@@ -595,7 +595,7 @@ onUnmounted(() => {
 .comunicados-estado {
   text-align: center;
   font-size: 0.85rem;
-  color: #64748b;
+  color: var(--text-secondary, #64748b);
   padding: 1.25rem 0.5rem;
   margin: 0;
   display: flex;
@@ -617,8 +617,8 @@ onUnmounted(() => {
 }
 
 .comunicado-item {
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
+  background: var(--bg-surface, #ffffff);
+  border: 1px solid var(--border-color, #e2e8f0);
   border-radius: 12px;
   padding: 0.85rem 1rem;
   display: flex;
@@ -659,20 +659,20 @@ onUnmounted(() => {
   text-transform: uppercase;
 }
 
-.type-badge.urgente { color: #dc2626; }
-.type-badge.general { color: #2563eb; }
-.type-badge.tyc { color: #059669; }
+.type-badge.urgente { color: var(--color-danger, #dc2626); }
+.type-badge.general { color: var(--tint-blue-text, #2563eb); }
+.type-badge.tyc { color: var(--tint-green-text, #059669); }
 
 .comunicado-date {
   font-size: 0.7rem;
-  color: #94a3b8;
+  color: var(--text-secondary, #94a3b8);
 }
 
 .comunicado-title {
   margin: 0;
   font-size: 0.875rem;
   font-weight: 600;
-  color: #0f172a;
+  color: var(--text-primary, #0f172a);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -681,7 +681,7 @@ onUnmounted(() => {
 .arrow-icon {
   width: 18px;
   height: 18px;
-  color: #94a3b8;
+  color: var(--text-secondary, #94a3b8);
   flex-shrink: 0;
 }
 
@@ -753,7 +753,7 @@ onUnmounted(() => {
 }
 
 .featured-section:fullscreen .tv-tag {
-  background: #000080;
+  background: var(--brand-primary, #000080);
   color: #ffffff;
   padding: 0.35rem 1rem;
   border-radius: 20px;
@@ -826,6 +826,6 @@ onUnmounted(() => {
 
 .featured-section:fullscreen .dot-btn.active {
   width: 28px;
-  background: #ffffff;
+  background: var(--bg-surface, #ffffff);
 }
 </style>

@@ -195,12 +195,12 @@ const goRegister = () => {
   outline: none;
   box-sizing: border-box;
   color: var(--text-primary, #0f172a);
-  background-color: var(--bg-surface);
+  background-color: var(--bg-input, #f8fafc);
   color: var(--text-primary);
 }
 
 .custom-input::placeholder {
-  color: #94a3b8;
+  color: var(--text-secondary, #94a3b8);
 }
 
 .custom-input:focus {
@@ -230,10 +230,10 @@ const goRegister = () => {
 
 /* Mensaje de Error */
 .error-msg {
-  color: #dc2626;
+  color: var(--color-danger, #dc2626);
   font-size: 0.85rem;
-  background-color: #fef2f2;
-  border: 1px solid #fecaca;
+  background-color: var(--tint-red-bg, #fef2f2);
+  border: 1px solid var(--tint-red-border, #fecaca);
   padding: 0.6rem;
   border-radius: 8px;
   margin-bottom: 1.25rem;
@@ -264,7 +264,7 @@ const goRegister = () => {
 }
 
 .btn-primary:hover:not(:disabled) {
-  background-color: #000066;
+  background-color: color-mix(in srgb, var(--brand-primary, #000080) 85%, #000000);
   transform: translateY(-1px);
 }
 
