@@ -134,7 +134,7 @@
 <script setup>
 import { ref } from 'vue';
 import { useRouter } from 'vue-router';
-import { API_URL } from '../api';
+import { apiFetch } from '../api';
 import AppHeader from '../components/AppHeader.vue';
 import SidebarMenu from '../components/SidebarMenu.vue';
 import NotificationsDrawer from '../components/NotificationsDrawer.vue';
@@ -188,15 +188,15 @@ const publicarAviso = async () => {
 
   try {
     // Nota: "Destacado" e imagen aún no tienen columna en la BD, por eso no se envían.
-    const response = await fetch(`${API_URL}/api/anuncios`, {
+    // El autor lo toma el servidor del token de sesión
+    const response = await apiFetch('/api/anuncios', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         titulo: nuevoAviso.value.titulo,
         contenido: nuevoAviso.value.contenido,
         categoria: nuevoAviso.value.categoria,
-        urgente: nuevoAviso.value.tipo === 'Urgente',
-        id_autor: usuario.id_usu
+        urgente: nuevoAviso.value.tipo === 'Urgente'
       })
     });
 

@@ -123,7 +123,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
-import { API_URL } from '../api';
+import { apiFetch } from '../api';
 import AppHeader from '../components/AppHeader.vue';
 import SidebarMenu from '../components/SidebarMenu.vue';
 import NotificationsDrawer from '../components/NotificationsDrawer.vue';
@@ -168,7 +168,7 @@ const cargarAvisos = async () => {
   cargando.value = true;
   errorCarga.value = '';
   try {
-    const res = await fetch(`${API_URL}/api/anuncios?id_usu=${usuario.id_usu}`);
+    const res = await apiFetch('/api/anuncios');
     const data = await res.json();
     if (!res.ok) {
       errorCarga.value = data.error || 'Error al consultar los avisos';
@@ -196,11 +196,7 @@ const confirmarLectura = async (aviso) => {
   if (aviso.leido || aviso.confirmando) return;
   aviso.confirmando = true;
   try {
-    const res = await fetch(`${API_URL}/api/anuncios/${aviso.id}/leido`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id_usu: usuario.id_usu })
-    });
+    const res = await apiFetch(`/api/anuncios/${aviso.id}/leido`, { method: 'POST' });
     if (!res.ok) {
       const data = await res.json();
       alert(data.error || 'No se pudo confirmar la lectura');

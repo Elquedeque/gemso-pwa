@@ -97,6 +97,7 @@ const handleLogin = async () => {
 
     // Guardar sesión del usuario localmente
     localStorage.setItem('usuario', JSON.stringify(data.usuario));
+    localStorage.setItem('token', data.token);
 
     // Redirigir al módulo de anuncios
     router.push('/anuncios');

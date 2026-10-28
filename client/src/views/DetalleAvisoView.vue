@@ -114,7 +114,7 @@
 <script setup>
 import { ref, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { API_URL } from '../api';
+import { apiFetch } from '../api';
 import AppHeader from '../components/AppHeader.vue';
 import SidebarMenu from '../components/SidebarMenu.vue';
 import NotificationsDrawer from '../components/NotificationsDrawer.vue';
@@ -163,7 +163,7 @@ const cargarAviso = async () => {
   cargando.value = true;
   errorCarga.value = '';
   try {
-    const res = await fetch(`${API_URL}/api/anuncios/${route.params.id}?id_usu=${usuario.id_usu}`);
+    const res = await apiFetch(`/api/anuncios/${route.params.id}`);
     const data = await res.json();
     if (!res.ok) {
       errorCarga.value = data.error || 'No se pudo cargar el aviso';
@@ -187,11 +187,7 @@ const confirmarLectura = async () => {
   if (aviso.value.leido || confirmando.value) return;
   confirmando.value = true;
   try {
-    const res = await fetch(`${API_URL}/api/anuncios/${aviso.value.id}/leido`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id_usu: usuario.id_usu })
-    });
+    const res = await apiFetch(`/api/anuncios/${aviso.value.id}/leido`, { method: 'POST' });
     if (!res.ok) {
       const data = await res.json();
       alert(data.error || 'No se pudo confirmar la lectura');

@@ -1,7 +1,16 @@
 const express = require('express');
 const cors = require('cors');
+const jwt = require('jsonwebtoken');
 require('dotenv').config();
 const db = require('./db');
+
+// Clave para firmar los tokens de sesión. Sin ella no se arranca el servidor.
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET || JWT_SECRET.length < 32 || JWT_SECRET.startsWith('cambia_esto')) {
+  console.error('Falta JWT_SECRET en server/.env (mínimo 32 caracteres). Ver .env.example');
+  process.exit(1);
+}
+const DURACION_SESION = '8h';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -39,6 +48,49 @@ const obtenerPermisos = async (idUsu) => {
 
 const tienePermiso = async (idUsu, permiso) => (await obtenerPermisos(idUsu)).includes(permiso);
 
+// ---- Autenticación ----
+// Lee "Authorization: Bearer <token>", lo verifica y deja al usuario en req.usuario.
+// El usuario sale del token firmado, nunca de lo que mande el cliente en query/body.
+// También se carga su departamento actual desde la BD (por si cambió tras el login).
+const autenticar = async (req, res, next) => {
+  const [tipo, token] = (req.headers.authorization || '').split(' ');
+  if (tipo !== 'Bearer' || !token) {
+    return res.status(401).json({ error: 'Debes iniciar sesión' });
+  }
+
+  let payload;
+  try {
+    payload = jwt.verify(token, JWT_SECRET);
+  } catch {
+    return res.status(401).json({ error: 'Tu sesión expiró. Inicia sesión nuevamente' });
+  }
+
+  try {
+    const result = await db.query(
+      'SELECT id_usu, id_departamento FROM usuarios WHERE id_usu = $1',
+      [payload.id_usu]
+    );
+    if (result.rows.length === 0) {
+      return res.status(401).json({ error: 'Usuario no encontrado' });
+    }
+    req.usuario = result.rows[0];
+    next();
+  } catch (error) {
+    console.error('Error al autenticar:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+};
+
+// Valida un id opcional: undefined/null/'' -> null; entero positivo -> número; otro -> NaN
+const idOpcional = (valor) => {
+  if (valor === undefined || valor === null || valor === '') return null;
+  const n = Number(valor);
+  return Number.isInteger(n) && n > 0 ? n : NaN;
+};
+
+// Categorías permitidas (deben coincidir con el <select> de CrearAvisoView.vue)
+const CATEGORIAS_AVISO = ['Corporativo', 'Autofest 2026', 'Talento y Cultura', 'Sistemas / TI', 'General'];
+
 // Los correos se manejan sin distinguir mayúsculas y sin espacios (ver migración 002)
 const normalizarCorreo = (correo) => String(correo ?? '').trim().toLowerCase();
 
@@ -68,8 +120,11 @@ app.post('/api/login', async (req, res) => {
     const usuario = result.rows[0];
     usuario.permisos = await obtenerPermisos(usuario.id_usu);
 
+    const token = jwt.sign({ id_usu: usuario.id_usu }, JWT_SECRET, { expiresIn: DURACION_SESION });
+
     res.json({
       message: 'Inicio de sesión exitoso',
+      token,
       usuario
     });
   } catch (error) {
@@ -124,20 +179,21 @@ app.post('/api/usuarios', async (req, res) => {
         SELECT nuevo.id_usu, p.id_per
         FROM nuevo
         JOIN departamentos d ON d.id_dep = nuevo.id_departamento
-        JOIN permisos p ON p.nombre = '${PERMISO_PUBLICAR_AVISOS}'
+        JOIN permisos p ON p.nombre = $8
         WHERE d.nombre = 'Talento y Cultura'
       )
       SELECT id_usu, nombre_completo, correo FROM nuevo;
     `;
 
     const values = [
-      nombre_completo, 
-      correo, 
-      contraseña, 
-      puesto, 
-      id_departamento, 
-      fecha_nacimiento, 
-      fecha_ingreso
+      nombre_completo,
+      correo,
+      contraseña,
+      puesto,
+      id_departamento,
+      fecha_nacimiento,
+      fecha_ingreso,
+      PERMISO_PUBLICAR_AVISOS
     ];
 
     const result = await db.query(query, values);
@@ -177,13 +233,9 @@ const FILTRO_VISIBLES = `
    OR a.id_usu_destino = $1)
 `;
 
-// Endpoint para obtener los anuncios visibles para un usuario
-app.get('/api/anuncios', async (req, res) => {
-  const idUsu = Number(req.query.id_usu);
-
-  if (!Number.isInteger(idUsu) || idUsu <= 0) {
-    return res.status(400).json({ error: 'Debes indicar un id_usu válido' });
-  }
+// Endpoint para obtener los anuncios visibles para el usuario de la sesión
+app.get('/api/anuncios', autenticar, async (req, res) => {
+  const { id_usu: idUsu, id_departamento } = req.usuario;
 
   // ?limite=N opcional (1 a 50); sin él se devuelven todos
   let limite = null;
@@ -195,11 +247,6 @@ app.get('/api/anuncios', async (req, res) => {
   }
 
   try {
-    const usuario = await db.query('SELECT id_departamento FROM usuarios WHERE id_usu = $1', [idUsu]);
-    if (usuario.rows.length === 0) {
-      return res.status(404).json({ error: 'Usuario no encontrado' });
-    }
-
     const query = `
       SELECT
         a.id_anu,
@@ -222,7 +269,7 @@ app.get('/api/anuncios', async (req, res) => {
       LIMIT $3;
     `;
     // LIMIT NULL en PostgreSQL equivale a "sin límite"
-    const result = await db.query(query, [idUsu, usuario.rows[0].id_departamento, limite]);
+    const result = await db.query(query, [idUsu, id_departamento, limite]);
     res.json(result.rows);
   } catch (error) {
     console.error('Error al obtener anuncios:', error);
@@ -232,20 +279,15 @@ app.get('/api/anuncios', async (req, res) => {
 
 // Endpoint para obtener el detalle de un anuncio (con sus adjuntos)
 // Solo lo devuelve si es visible para el usuario; si no, responde 404
-app.get('/api/anuncios/:id', async (req, res) => {
+app.get('/api/anuncios/:id', autenticar, async (req, res) => {
   const idAnu = Number(req.params.id);
-  const idUsu = Number(req.query.id_usu);
+  const { id_usu: idUsu, id_departamento } = req.usuario;
 
-  if (!Number.isInteger(idAnu) || idAnu <= 0 || !Number.isInteger(idUsu) || idUsu <= 0) {
-    return res.status(400).json({ error: 'Anuncio o usuario inválido' });
+  if (!Number.isInteger(idAnu) || idAnu <= 0) {
+    return res.status(400).json({ error: 'Aviso inválido' });
   }
 
   try {
-    const usuario = await db.query('SELECT id_departamento FROM usuarios WHERE id_usu = $1', [idUsu]);
-    if (usuario.rows.length === 0) {
-      return res.status(404).json({ error: 'Usuario no encontrado' });
-    }
-
     const query = `
       SELECT
         a.id_anu,
@@ -264,7 +306,7 @@ app.get('/api/anuncios/:id', async (req, res) => {
       LEFT JOIN departamentos d ON a.id_dep_destino = d.id_dep
       WHERE a.id_anu = $3 AND ${FILTRO_VISIBLES};
     `;
-    const result = await db.query(query, [idUsu, usuario.rows[0].id_departamento, idAnu]);
+    const result = await db.query(query, [idUsu, id_departamento, idAnu]);
 
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Aviso no encontrado' });
@@ -286,35 +328,51 @@ app.get('/api/anuncios/:id', async (req, res) => {
 });
 
 // Endpoint para publicar un anuncio
-app.post('/api/anuncios', async (req, res) => {
-  const { titulo, contenido, categoria, urgente, id_autor, id_dep_destino } = req.body;
+// El autor es siempre el usuario de la sesión (no se acepta id_autor del cliente).
+// Destino opcional: id_dep_destino (un departamento) o id_usu_destino (una persona);
+// sin ninguno, el aviso es general. No se permiten ambos a la vez.
+app.post('/api/anuncios', autenticar, async (req, res) => {
+  const { titulo, contenido, categoria, urgente } = req.body;
+  const idAutor = req.usuario.id_usu;
+  const idDepDestino = idOpcional(req.body.id_dep_destino);
+  const idUsuDestino = idOpcional(req.body.id_usu_destino);
 
-  // Validación básica de campos requeridos
-  if (!titulo?.trim() || !contenido?.trim() || !categoria?.trim() || !id_autor) {
-    return res.status(400).json({ error: 'Título, contenido, categoría y autor son obligatorios' });
+  const esTexto = (v) => typeof v === 'string' && v.trim() !== '';
+  if (!esTexto(titulo) || !esTexto(contenido) || !esTexto(categoria)) {
+    return res.status(400).json({ error: 'Título, contenido y categoría son obligatorios' });
   }
-  if (!Number.isInteger(Number(id_autor)) || Number(id_autor) <= 0) {
-    return res.status(400).json({ error: 'Autor inválido' });
+  if (!CATEGORIAS_AVISO.includes(categoria.trim())) {
+    return res.status(400).json({ error: 'Categoría inválida' });
+  }
+  if (urgente !== undefined && typeof urgente !== 'boolean') {
+    return res.status(400).json({ error: 'El campo urgente debe ser verdadero o falso' });
+  }
+  if (Number.isNaN(idDepDestino) || Number.isNaN(idUsuDestino)) {
+    return res.status(400).json({ error: 'Departamento o usuario destino inválido' });
+  }
+  if (idDepDestino !== null && idUsuDestino !== null) {
+    return res.status(400).json({ error: 'Elige un departamento o un usuario destino, no ambos' });
   }
 
   try {
     // Solo usuarios con permiso pueden publicar (beta: Talento y Cultura)
-    if (!(await tienePermiso(id_autor, PERMISO_PUBLICAR_AVISOS))) {
+    if (!(await tienePermiso(idAutor, PERMISO_PUBLICAR_AVISOS))) {
       return res.status(403).json({ error: 'No tienes permiso para publicar avisos' });
     }
 
     const query = `
-      INSERT INTO anuncios (titulo, contenido, categoria, urgente, id_autor, id_dep_destino)
-      VALUES ($1, $2, $3, $4, $5, $6)
-      RETURNING id_anu, titulo, contenido, categoria, urgente, id_autor, id_dep_destino, fecha_creacion;
+      INSERT INTO anuncios (titulo, contenido, categoria, urgente, id_autor, id_dep_destino, id_usu_destino)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
+      RETURNING id_anu, titulo, contenido, categoria, urgente, id_autor, id_dep_destino, id_usu_destino, fecha_creacion;
     `;
     const values = [
       titulo.trim(),
       contenido.trim(),
       categoria.trim(),
       urgente === true,
-      id_autor,
-      id_dep_destino || null // null = visible para todos los departamentos
+      idAutor,
+      idDepDestino,
+      idUsuDestino
     ];
 
     const result = await db.query(query, values);
@@ -324,9 +382,9 @@ app.post('/api/anuncios', async (req, res) => {
       anuncio: result.rows[0]
     });
   } catch (error) {
-    // 23503: el autor o el departamento no existen
+    // 23503: el departamento o el usuario destino no existen
     if (error.code === '23503') {
-      return res.status(400).json({ error: 'El autor o el departamento indicado no existe' });
+      return res.status(400).json({ error: 'El departamento o el usuario destino no existe' });
     }
     // 22001: texto más largo de lo permitido por la columna
     if (error.code === '22001') {
@@ -338,15 +396,24 @@ app.post('/api/anuncios', async (req, res) => {
 });
 
 // Endpoint para confirmar la lectura de un anuncio
-app.post('/api/anuncios/:id/leido', async (req, res) => {
+// Solo se puede confirmar un aviso que el usuario puede ver (misma regla que la lista)
+app.post('/api/anuncios/:id/leido', autenticar, async (req, res) => {
   const idAnu = Number(req.params.id);
-  const idUsu = Number(req.body.id_usu);
+  const { id_usu: idUsu, id_departamento } = req.usuario;
 
-  if (!Number.isInteger(idAnu) || idAnu <= 0 || !Number.isInteger(idUsu) || idUsu <= 0) {
-    return res.status(400).json({ error: 'Anuncio o usuario inválido' });
+  if (!Number.isInteger(idAnu) || idAnu <= 0) {
+    return res.status(400).json({ error: 'Aviso inválido' });
   }
 
   try {
+    const visible = await db.query(
+      `SELECT 1 FROM anuncios a WHERE a.id_anu = $3 AND ${FILTRO_VISIBLES}`,
+      [idUsu, id_departamento, idAnu]
+    );
+    if (visible.rows.length === 0) {
+      return res.status(404).json({ error: 'Aviso no encontrado' });
+    }
+
     // ON CONFLICT: si ya estaba confirmado, no se duplica (uq_usuario_anuncio)
     await db.query(
       `INSERT INTO anuncios_leidos (id_usu, id_anu)
@@ -356,8 +423,9 @@ app.post('/api/anuncios/:id/leido', async (req, res) => {
     );
     res.json({ message: 'Lectura confirmada', id_anu: idAnu, leido: true });
   } catch (error) {
+    // 23503: el aviso se borró entre la verificación y el registro
     if (error.code === '23503') {
-      return res.status(404).json({ error: 'El anuncio o el usuario no existe' });
+      return res.status(404).json({ error: 'Aviso no encontrado' });
     }
     console.error('Error al confirmar lectura:', error);
     res.status(500).json({ error: 'Error interno del servidor al confirmar la lectura' });

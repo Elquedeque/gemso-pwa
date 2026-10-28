@@ -53,7 +53,7 @@ const routes = [
       } catch {
         usuario = null;
       }
-      if (!usuario?.id_usu) return '/login';
+      if (!usuario?.id_usu || !localStorage.getItem('token')) return '/login';
       if (!usuario.permisos?.includes('publicar_avisos')) return '/mis-avisos';
       return true;
     }

@@ -166,7 +166,7 @@
 <script setup>
 import { ref, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
-import { API_URL } from '../api';
+import { apiFetch } from '../api';
 import AppHeader from '../components/AppHeader.vue';
 import SidebarMenu from '../components/SidebarMenu.vue';
 import NotificationsDrawer from '../components/NotificationsDrawer.vue';
@@ -234,7 +234,7 @@ const cargarRecientes = async () => {
   cargandoRecientes.value = true;
   errorRecientes.value = '';
   try {
-    const res = await fetch(`${API_URL}/api/anuncios?id_usu=${idUsuario}&limite=${LIMITE_RECIENTES}`);
+    const res = await apiFetch(`/api/anuncios?limite=${LIMITE_RECIENTES}`);
     const data = await res.json();
     if (!res.ok) {
       errorRecientes.value = data.error || 'No se pudieron cargar los comunicados';

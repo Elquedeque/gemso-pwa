@@ -143,7 +143,7 @@ const alNavegar = () => {
 
 const cerrarSesion = () => {
   emit('close');
-  localStorage.clear();
+  localStorage.clear(); // incluye 'usuario' y 'token'
   router.replace('/'); 
 };
 </script>
