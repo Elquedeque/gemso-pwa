@@ -70,6 +70,11 @@ const routes = [
     component: PerfilView
   },
   {
+    path: '/perfil/editar',
+    name: 'editar-perfil',
+    component: () => import('../views/EditarPerfilView.vue')
+  },
+  {
     path: '/ajustes',
     name: 'ajustes',
     component: AjustesView

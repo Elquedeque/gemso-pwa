@@ -9,8 +9,16 @@
     <!-- Contenido Principal -->
     <main class="dashboard-main">
       <header class="page-header">
-        <h2>Mi Perfil</h2>
-        <p class="subtitle">Información personal y de tu cuenta laboral</p>
+        <div>
+          <h2>Mi Perfil</h2>
+          <p class="subtitle">Información personal y de tu cuenta laboral</p>
+        </div>
+        <router-link v-if="perfil" to="/perfil/editar" class="edit-btn">
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
+          </svg>
+          Editar perfil
+        </router-link>
       </header>
 
       <!-- Estado de Carga / Error -->
@@ -83,8 +91,9 @@
             <div class="info-grid">
               <div class="info-item">
                 <label>Empresa</label>
-                <!-- Pendiente: manejar las empresas del grupo (Autos de Hermosillo, Autos Bálticos, etc.) -->
-                <p>GEMSO</p>
+                <!-- La empresa pertenece siempre al grupo corporativo GEMSO -->
+                <p :class="{ 'sin-dato': !perfil.empresa }">{{ mostrar(perfil.empresa) }}</p>
+                <span class="grupo-tag">Grupo GEMSO</span>
               </div>
               <div class="info-item">
                 <label>Gerente</label>
@@ -112,6 +121,7 @@ import AppHeader from '../components/AppHeader.vue';
 import SidebarMenu from '../components/SidebarMenu.vue';
 import NotificationsDrawer from '../components/NotificationsDrawer.vue';
 import { apiFetch } from '../api';
+import { mostrar, obtenerIniciales, formatearTelefono, formatearFecha, calcularAntiguedad } from '../utils/perfil';
 
 const isMenuOpen = ref(false);
 const isNotificationsOpen = ref(false);
@@ -121,52 +131,10 @@ const perfil = ref(null);
 const cargando = ref(false);
 const errorCarga = ref('');
 
-// Texto para campos opcionales que aún no se capturan en la BD
-const mostrar = (valor) => valor || 'No registrado';
-
-// Convierte 'YYYY-MM-DD' en una fecha local (sin desfase por zona horaria)
-const aFecha = (texto) => {
-  const [anio, mes, dia] = texto.split('-').map(Number);
-  return new Date(anio, mes - 1, dia);
-};
-
-// Iniciales para el avatar: primera letra del primer y segundo nombre/apellido
-const iniciales = computed(() => {
-  const partes = (perfil.value?.nombre_completo || '').trim().split(/\s+/);
-  return partes.slice(0, 2).map(p => p[0]?.toUpperCase() || '').join('');
-});
-
-// El teléfono se guarda con 10 dígitos; se muestra como "662 123 4567"
-const telefonoTexto = computed(() => {
-  const tel = perfil.value?.telefono;
-  if (!tel) return 'No registrado';
-  return /^\d{10}$/.test(tel) ? `${tel.slice(0, 3)} ${tel.slice(3, 6)} ${tel.slice(6)}` : tel;
-});
-
-// Ej. "27 jul 2026"
-const fechaIngresoTexto = computed(() => {
-  if (!perfil.value?.fecha_ingreso) return 'No registrado';
-  return aFecha(perfil.value.fecha_ingreso).toLocaleDateString('es-MX', {
-    day: '2-digit', month: 'short', year: 'numeric'
-  });
-});
-
-// Antigüedad desde la fecha de ingreso, ej. "3 meses", "1 año 2 meses"
-const antiguedad = computed(() => {
-  if (!perfil.value?.fecha_ingreso) return '—';
-  const ingreso = aFecha(perfil.value.fecha_ingreso);
-  const hoy = new Date();
-  let meses = (hoy.getFullYear() - ingreso.getFullYear()) * 12 + (hoy.getMonth() - ingreso.getMonth());
-  if (hoy.getDate() < ingreso.getDate()) meses--; // aún no se cumple el mes en curso
-  if (meses < 1) return 'Menos de 1 mes';
-
-  const anios = Math.floor(meses / 12);
-  const resto = meses % 12;
-  const partes = [];
-  if (anios) partes.push(`${anios} ${anios === 1 ? 'año' : 'años'}`);
-  if (resto) partes.push(`${resto} ${resto === 1 ? 'mes' : 'meses'}`);
-  return partes.join(' ');
-});
+const iniciales = computed(() => obtenerIniciales(perfil.value?.nombre_completo));
+const telefonoTexto = computed(() => formatearTelefono(perfil.value?.telefono));
+const fechaIngresoTexto = computed(() => formatearFecha(perfil.value?.fecha_ingreso));
+const antiguedad = computed(() => calcularAntiguedad(perfil.value?.fecha_ingreso));
 
 const cargarPerfil = async () => {
   cargando.value = true;
@@ -190,240 +158,5 @@ const cargarPerfil = async () => {
 onMounted(cargarPerfil);
 </script>
 
-<style scoped>
-.dashboard-container {
-  min-height: 100vh;
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  background-color: var(--bg-primary, #f8fafc);
-  color: var(--text-primary, #0f172a);
-}
-
-.dashboard-main {
-  flex: 1;
-  width: 100%;
-  max-width: 1200px; /* Ancho máximo amplio para laptops, TV y monitores de escritorio */
-  margin: 0 auto;
-  padding: 1.5rem 1.25rem 2.5rem;
-  box-sizing: border-box;
-  display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
-}
-
-.page-header h2 {
-  font-size: 1.6rem;
-  font-weight: 700;
-  margin: 0;
-  color: var(--text-primary, #0f172a);
-}
-
-.subtitle {
-  font-size: 0.875rem;
-  color: var(--text-secondary, #64748b);
-  margin: 0.25rem 0 0 0;
-}
-
-/* Layout Responsivo (Grid de 2 columnas en Desktop/TV, 1 columna en Móvil) */
-.profile-layout {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 1.5rem;
-}
-
-@media (min-width: 850px) {
-  .profile-layout {
-    grid-template-columns: 320px 1fr;
-    align-items: start;
-  }
-}
-
-/* Estilo Base de las Tarjetas */
-.profile-card {
-  background: var(--bg-surface, #ffffff);
-  border-radius: 16px;
-  padding: 1.5rem;
-  border: 1px solid var(--border-color, #e2e8f0);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
-}
-
-/* Tarjeta Hero (Avatar) */
-.hero-card {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
-}
-
-.avatar-wrapper {
-  position: relative;
-  margin-bottom: 1rem;
-}
-
-.avatar-img {
-  width: 100px;
-  height: 100px;
-  border-radius: 50%;
-  border: 4px solid var(--brand-primary, #000080);
-  box-sizing: border-box;
-  background-color: var(--brand-primary, #000080);
-  color: #ffffff;
-  font-size: 2rem;
-  font-weight: 700;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  user-select: none;
-}
-
-.status-badge {
-  position: absolute;
-  bottom: 6px;
-  right: 6px;
-  width: 16px;
-  height: 16px;
-  background-color: #22c55e;
-  border: 2px solid #ffffff;
-  border-radius: 50%;
-}
-
-.user-name {
-  font-size: 1.15rem;
-  font-weight: 700;
-  margin: 0 0 0.25rem 0;
-  color: var(--text-primary, #0f172a);
-}
-
-.user-role {
-  font-size: 0.875rem;
-  color: var(--text-secondary, #64748b);
-  margin: 0 0 0.75rem 0;
-}
-
-.department-tag {
-  background-color: var(--bg-primary, #f1f5f9);
-  color: var(--brand-primary, #000080);
-  font-size: 0.75rem;
-  font-weight: 600;
-  padding: 0.35rem 0.85rem;
-  border-radius: 20px;
-  margin-bottom: 1.5rem;
-}
-
-.quick-stats {
-  display: flex;
-  align-items: center;
-  justify-content: space-around;
-  width: 100%;
-  padding-top: 1.25rem;
-  border-top: 1px solid var(--border-color, #e2e8f0);
-}
-
-.stat-item {
-  display: flex;
-  flex-direction: column;
-}
-
-.stat-value {
-  font-size: 1rem;
-  font-weight: 700;
-  color: var(--brand-primary, #000080);
-}
-
-.stat-label {
-  font-size: 0.75rem;
-  color: var(--text-secondary, #64748b);
-}
-
-/* Campo opcional sin capturar */
-.info-item p.sin-dato {
-  color: var(--text-secondary, #64748b);
-  font-style: italic;
-}
-
-/* Estados de carga / error */
-.estado-box {
-  text-align: center;
-  padding: 3rem 1rem;
-  color: var(--text-secondary, #475569);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.75rem;
-}
-
-.estado-box h3 {
-  margin: 0;
-  color: var(--text-primary, #0f172a);
-}
-
-.retry-btn {
-  background-color: var(--brand-primary, #000080);
-  color: #ffffff;
-  border: none;
-  border-radius: 8px;
-  padding: 0.5rem 1.25rem;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-/* Detalle de Secciones */
-.profile-details {
-  display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
-}
-
-.card-header {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  margin-bottom: 1.25rem;
-  padding-bottom: 0.75rem;
-  border-bottom: 1px solid var(--border-color, #e2e8f0);
-}
-
-.section-icon {
-  width: 22px;
-  height: 22px;
-  color: var(--brand-primary, #000080);
-}
-
-.card-header h3 {
-  font-size: 1.05rem;
-  font-weight: 700;
-  margin: 0;
-}
-
-/* Grid de Información (2 columnas en tablet/desktop, 1 columna en teléfonos) */
-.info-grid {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 1rem;
-}
-
-@media (min-width: 580px) {
-  .info-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-}
-
-.info-item label {
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: var(--text-secondary, #64748b);
-  text-transform: uppercase;
-  letter-spacing: 0.3px;
-  display: block;
-  margin-bottom: 0.25rem;
-}
-
-.info-item p {
-  font-size: 0.925rem;
-  font-weight: 500;
-  color: var(--text-primary, #0f172a);
-  margin: 0;
-  word-break: break-word;
-}
-</style>
+<!-- Estilos compartidos con EditarPerfilView -->
+<style scoped src="../assets/perfil.css"></style>

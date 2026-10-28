@@ -1,0 +1,268 @@
+/* Estilos compartidos por PerfilView y EditarPerfilView */
+
+.dashboard-container {
+  min-height: 100vh;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--bg-primary, #f8fafc);
+  color: var(--text-primary, #0f172a);
+}
+
+.dashboard-main {
+  flex: 1;
+  width: 100%;
+  max-width: 1200px; /* Ancho máximo amplio para laptops, TV y monitores de escritorio */
+  margin: 0 auto;
+  padding: 1.5rem 1.25rem 2.5rem;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.edit-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  background-color: var(--brand-primary, #000080);
+  color: #ffffff;
+  text-decoration: none;
+  font-size: 0.875rem;
+  font-weight: 600;
+  padding: 0.55rem 1rem;
+  border-radius: 8px;
+}
+
+.edit-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+.grupo-tag {
+  font-size: 0.75rem;
+  color: var(--text-secondary, #64748b);
+}
+
+.page-header h2 {
+  font-size: 1.6rem;
+  font-weight: 700;
+  margin: 0;
+  color: var(--text-primary, #0f172a);
+}
+
+.subtitle {
+  font-size: 0.875rem;
+  color: var(--text-secondary, #64748b);
+  margin: 0.25rem 0 0 0;
+}
+
+/* Layout Responsivo (Grid de 2 columnas en Desktop/TV, 1 columna en Móvil) */
+.profile-layout {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.5rem;
+}
+
+@media (min-width: 850px) {
+  .profile-layout {
+    grid-template-columns: 320px 1fr;
+    align-items: start;
+  }
+}
+
+/* Estilo Base de las Tarjetas */
+.profile-card {
+  background: var(--bg-surface, #ffffff);
+  border-radius: 16px;
+  padding: 1.5rem;
+  border: 1px solid var(--border-color, #e2e8f0);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
+}
+
+/* Tarjeta Hero (Avatar) */
+.hero-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.avatar-wrapper {
+  position: relative;
+  margin-bottom: 1rem;
+}
+
+.avatar-img {
+  width: 100px;
+  height: 100px;
+  border-radius: 50%;
+  border: 4px solid var(--brand-primary, #000080);
+  box-sizing: border-box;
+  background-color: var(--brand-primary, #000080);
+  color: #ffffff;
+  font-size: 2rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  user-select: none;
+}
+
+.status-badge {
+  position: absolute;
+  bottom: 6px;
+  right: 6px;
+  width: 16px;
+  height: 16px;
+  background-color: #22c55e;
+  border: 2px solid #ffffff;
+  border-radius: 50%;
+}
+
+.user-name {
+  font-size: 1.15rem;
+  font-weight: 700;
+  margin: 0 0 0.25rem 0;
+  color: var(--text-primary, #0f172a);
+}
+
+.user-role {
+  font-size: 0.875rem;
+  color: var(--text-secondary, #64748b);
+  margin: 0 0 0.75rem 0;
+}
+
+.department-tag {
+  background-color: var(--bg-primary, #f1f5f9);
+  color: var(--brand-primary, #000080);
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.35rem 0.85rem;
+  border-radius: 20px;
+  margin-bottom: 1.5rem;
+}
+
+.quick-stats {
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  width: 100%;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--border-color, #e2e8f0);
+}
+
+.stat-item {
+  display: flex;
+  flex-direction: column;
+}
+
+.stat-value {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--brand-primary, #000080);
+}
+
+.stat-label {
+  font-size: 0.75rem;
+  color: var(--text-secondary, #64748b);
+}
+
+/* Campo opcional sin capturar */
+.info-item p.sin-dato {
+  color: var(--text-secondary, #64748b);
+  font-style: italic;
+}
+
+/* Estados de carga / error */
+.estado-box {
+  text-align: center;
+  padding: 3rem 1rem;
+  color: var(--text-secondary, #475569);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.estado-box h3 {
+  margin: 0;
+  color: var(--text-primary, #0f172a);
+}
+
+.retry-btn {
+  background-color: var(--brand-primary, #000080);
+  color: #ffffff;
+  border: none;
+  border-radius: 8px;
+  padding: 0.5rem 1.25rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* Detalle de Secciones */
+.profile-details {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.card-header {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 1.25rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--border-color, #e2e8f0);
+}
+
+.section-icon {
+  width: 22px;
+  height: 22px;
+  color: var(--brand-primary, #000080);
+}
+
+.card-header h3 {
+  font-size: 1.05rem;
+  font-weight: 700;
+  margin: 0;
+}
+
+/* Grid de Información (2 columnas en tablet/desktop, 1 columna en teléfonos) */
+.info-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+}
+
+@media (min-width: 580px) {
+  .info-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.info-item label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-secondary, #64748b);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  display: block;
+  margin-bottom: 0.25rem;
+}
+
+.info-item p {
+  font-size: 0.925rem;
+  font-weight: 500;
+  color: var(--text-primary, #0f172a);
+  margin: 0;
+  word-break: break-word;
+}
