@@ -6,15 +6,14 @@ const jwt = require('jsonwebtoken');
 const db = require('../config/db');
 const { JWT_SECRET, DURACION_SESION } = require('../config/auth');
 const { PERMISO_PUBLICAR_AVISOS, obtenerPermisos } = require('../services/permisos');
+const {
+  normalizarCorreo,
+  normalizarTelefono,
+  TELEFONO_VALIDO,
+  idValido
+} = require('../services/validaciones');
 
 const router = express.Router();
-
-// Los correos se manejan sin distinguir mayúsculas y sin espacios (ver migración 002)
-const normalizarCorreo = (correo) => String(correo ?? '').trim().toLowerCase();
-
-// El teléfono se guarda solo con dígitos: "(662) 123-4567" -> "6621234567"
-const normalizarTelefono = (telefono) => String(telefono ?? '').replace(/\D/g, '');
-const TELEFONO_VALIDO = /^\d{10}$/; // número nacional de México a 10 dígitos
 
 // Endpoint de Inicio de Sesión
 router.post('/login', async (req, res) => {
@@ -59,6 +58,8 @@ router.post('/login', async (req, res) => {
 router.post('/usuarios', async (req, res) => {
   const correo = normalizarCorreo(req.body.correo);
   const telefono = normalizarTelefono(req.body.telefono);
+  const idSucursal = idValido(req.body.id_sucursal);
+  const idEmpresa = idValido(req.body.id_empresa);
   const {
     nombre_completo,
     contraseña,
@@ -69,7 +70,8 @@ router.post('/usuarios', async (req, res) => {
   } = req.body;
 
   // Validación básica de campos requeridos
-  if (!nombre_completo || !correo || !telefono || !contraseña || !puesto || !id_departamento || !fecha_nacimiento || !fecha_ingreso) {
+  if (!nombre_completo || !correo || !telefono || !contraseña || !puesto || !id_departamento ||
+      !idSucursal || !idEmpresa || !fecha_nacimiento || !fecha_ingreso) {
     return res.status(400).json({ error: 'Todos los campos son obligatorios' });
   }
   if (!TELEFONO_VALIDO.test(telefono)) {
@@ -86,7 +88,7 @@ router.post('/usuarios', async (req, res) => {
     // 2. Insertar en la base de datos PostgreSQL.
     //    En la misma sentencia (atómica): si el usuario es de Talento y Cultura,
     //    se le asigna el permiso de publicar avisos (regla de la beta).
-    //    La sucursal toma su valor por defecto "GEMSO" (ver migración 004).
+    //    El gerente no se pide aquí: lo asignará Talento y Cultura.
     const query = `
       WITH nuevo AS (
         INSERT INTO usuarios (
@@ -97,9 +99,11 @@ router.post('/usuarios', async (req, res) => {
           id_departamento,
           fecha_nacimiento,
           fecha_ingreso,
-          telefono
+          telefono,
+          id_sucursal,
+          id_empresa
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $9)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $9, $10, $11)
         RETURNING id_usu, nombre_completo, correo, id_departamento
       ),
       permiso_tyc AS (
@@ -122,7 +126,9 @@ router.post('/usuarios', async (req, res) => {
       fecha_nacimiento,
       fecha_ingreso,
       PERMISO_PUBLICAR_AVISOS,
-      telefono
+      telefono,
+      idSucursal,
+      idEmpresa
     ];
 
     const result = await db.query(query, values);
@@ -135,6 +141,10 @@ router.post('/usuarios', async (req, res) => {
     // 23505: correo duplicado (p. ej. dos registros simultáneos con el mismo correo)
     if (error.code === '23505') {
       return res.status(400).json({ message: 'El correo electrónico ya está registrado.' });
+    }
+    // 23503: el departamento, la sucursal o la empresa no existen
+    if (error.code === '23503') {
+      return res.status(400).json({ message: 'El departamento, la sucursal o la empresa no existe.' });
     }
     console.error('Error al registrar usuario:', error);
     res.status(500).json({ message: 'Error interno del servidor al intentar registrar.' });

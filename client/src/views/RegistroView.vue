@@ -118,6 +118,29 @@
           </div>
         </div>
 
+        <!-- Empresa del grupo GEMSO y Sucursal (catálogos de la BD) -->
+        <div class="form-row">
+          <div class="form-group">
+            <label for="empresa">Empresa *</label>
+            <select id="empresa" v-model="formulario.id_empresa" required>
+              <option value="" disabled>Selecciona empresa</option>
+              <option v-for="emp in empresas" :key="emp.id_emp" :value="emp.id_emp">
+                {{ emp.nombre }}
+              </option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="sucursal">Sucursal *</label>
+            <select id="sucursal" v-model="formulario.id_sucursal" required>
+              <option value="" disabled>Selecciona sucursal</option>
+              <option v-for="suc in sucursales" :key="suc.id_suc" :value="suc.id_suc">
+                {{ suc.nombre }}
+              </option>
+            </select>
+          </div>
+        </div>
+
         <!-- Fechas -->
         <div class="form-row">
           <div class="form-group">
@@ -166,6 +189,8 @@ const isSubmitting = ref(false);
 const errorMsg = ref('');
 const confirmarPassword = ref('');
 const departamentos = ref([]);
+const empresas = ref([]);
+const sucursales = ref([]);
 
 const formulario = ref({
   nombre_completo: '',
@@ -174,24 +199,33 @@ const formulario = ref({
   contraseña: '',
   puesto: '',
   id_departamento: '',
+  id_empresa: '',
+  id_sucursal: '',
   fecha_nacimiento: '',
   fecha_ingreso: ''
 });
 
-// Cargar Departamentos desde PostgreSQL
-const cargarDepartamentos = async () => {
+// Carga un catálogo de la BD (departamentos, empresas o sucursales) en la lista indicada
+const cargarCatalogo = async (ruta, destino) => {
   try {
-    const res = await fetch(`${API_URL}/api/departamentos`);
+    const res = await fetch(`${API_URL}${ruta}`);
     if (res.ok) {
-      departamentos.value = await res.json();
+      destino.value = await res.json();
     }
   } catch (err) {
-    console.error('Error al obtener departamentos:', err);
+    console.error(`Error al obtener ${ruta}:`, err);
   }
 };
 
-onMounted(() => {
-  cargarDepartamentos();
+onMounted(async () => {
+  await Promise.all([
+    cargarCatalogo('/api/departamentos', departamentos),
+    cargarCatalogo('/api/empresas', empresas),
+    cargarCatalogo('/api/sucursales', sucursales)
+  ]);
+  // Si solo hay una opción, se preselecciona para ahorrar un paso
+  if (empresas.value.length === 1) formulario.value.id_empresa = empresas.value[0].id_emp;
+  if (sucursales.value.length === 1) formulario.value.id_sucursal = sucursales.value[0].id_suc;
 });
 
 const handleRegistro = async () => {
@@ -209,6 +243,11 @@ const handleRegistro = async () => {
 
   if (!formulario.value.id_departamento) {
     errorMsg.value = 'Por favor selecciona un departamento.';
+    return;
+  }
+
+  if (!formulario.value.id_empresa || !formulario.value.id_sucursal) {
+    errorMsg.value = 'Por favor selecciona tu empresa y sucursal.';
     return;
   }
 
