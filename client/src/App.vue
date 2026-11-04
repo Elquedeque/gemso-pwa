@@ -4,10 +4,12 @@
     <main class="app-main">
       <router-view />
     </main>
+    <AvisoConexion />
   </div>
 </template>
 
 <script setup>
+import AvisoConexion from './components/AvisoConexion.vue';
 </script>
 
 <style>

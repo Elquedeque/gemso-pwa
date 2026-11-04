@@ -98,6 +98,7 @@
 import { computed } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { usuarioTienePermiso } from '../utils/estadisticas';
+import { cerrarSesionLocal } from '../api';
 
 const props = defineProps({
   isOpen: {
@@ -148,7 +149,7 @@ const alNavegar = () => {
 
 const cerrarSesion = () => {
   emit('close');
-  localStorage.clear(); // incluye 'usuario' y 'token'
+  cerrarSesionLocal(); // borra 'usuario', 'token' y el caché sin conexión
   router.replace('/'); 
 };
 </script>
