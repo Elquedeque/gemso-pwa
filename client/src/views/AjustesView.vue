@@ -74,6 +74,8 @@ const config = ref({
   notificacionesEmail: false
 });
 
+// Por ahora solo se guarda en el navegador. Cuando este lo de push notifications
+// (Service Worker) pasar esto a la BD para que se respete en cualquier dispositivo
 const guardarAjustes = () => {
   localStorage.setItem('pwa_config', JSON.stringify(config.value));
   alert('Ajustes guardados correctamente');

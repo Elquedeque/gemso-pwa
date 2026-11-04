@@ -14,17 +14,31 @@
           <p class="subtitle">Comunicados e informativos oficiales de la organización</p>
         </div>
 
-        <!-- Solo visible para usuarios con permiso publicar_avisos -->
-        <button 
-          v-if="puedePublicar" 
-          class="btn-create-announcement" 
-          @click="crearAviso"
-        >
-          <svg class="btn-icon" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
-          </svg>
-          <span>Nuevo Aviso</span>
-        </button>
+        <div class="header-actions">
+          <!-- Solo visible para usuarios con permiso ver_estadisticas -->
+          <button
+            v-if="puedeVerEstadisticas"
+            class="btn-create-announcement btn-secundario"
+            @click="router.push('/estadisticas')"
+          >
+            <svg class="btn-icon" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M5 9.2h3V19H5zM10.6 5h2.8v14h-2.8zm5.6 8H19v6h-2.8z"/>
+            </svg>
+            <span>Estadísticas</span>
+          </button>
+
+          <!-- Solo visible para usuarios con permiso publicar_avisos -->
+          <button 
+            v-if="puedePublicar" 
+            class="btn-create-announcement" 
+            @click="crearAviso"
+          >
+            <svg class="btn-icon" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
+            </svg>
+            <span>Nuevo Aviso</span>
+          </button>
+        </div>
       </header>
 
       <!-- Barra de Filtros Categorizados -->
@@ -133,6 +147,7 @@ const router = useRouter();
 const isMenuOpen = ref(false);
 const isNotificationsOpen = ref(false);
 const puedePublicar = ref(false);
+const puedeVerEstadisticas = ref(false);
 const filtroActivo = ref('todos');
 
 const listaFiltros = [
@@ -231,6 +246,7 @@ onMounted(() => {
 
   // Permisos que devuelve el login (tabla usuario_permisos). Beta: solo Talento y Cultura
   puedePublicar.value = Array.isArray(usuario.permisos) && usuario.permisos.includes('publicar_avisos');
+  puedeVerEstadisticas.value = Array.isArray(usuario.permisos) && usuario.permisos.includes('ver_estadisticas');
   cargarAvisos();
 });
 </script>
@@ -292,6 +308,19 @@ onMounted(() => {
   cursor: pointer;
   transition: opacity 0.2s ease, transform 0.2s ease;
   white-space: nowrap;
+}
+
+.header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.btn-secundario {
+  background-color: var(--bg-surface, #ffffff);
+  color: var(--brand-primary, #000080);
+  border: 1px solid var(--brand-primary, #000080);
 }
 
 .btn-create-announcement:hover {

@@ -26,6 +26,11 @@
   --brand-primary: #000080;     
   --brand-accent: #0284c7;      
   --sidebar-bg: #ffffff;        
+
+  /* Gráficas de estadísticas: un solo tono, de claro (sin ver) a oscuro (confirmado) */
+  --chart-confirmado: #000080;
+  --chart-visto: #7c8cf0;
+  --chart-pendiente: #cbd5e1;
   
   /* Sombras */
   --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
@@ -56,6 +61,10 @@ html.dark {
   --brand-primary: #5b7cfa;
   --brand-accent: #38bdf8;
   --sidebar-bg: #030712;
+  /* En oscuro la escala se invierte: lo más claro es lo confirmado */
+  --chart-confirmado: #a5b4fc;
+  --chart-visto: #4f63d9;
+  --chart-pendiente: #475569;
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
   --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4);
 }

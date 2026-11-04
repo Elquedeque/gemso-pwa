@@ -1,17 +1,17 @@
-// Limpieza y validación de datos de usuario, compartida por el registro
-// (routes/auth.js) y la edición del perfil (routes/perfil.js).
+// Limpieza y Validación de datos del usuario
+// La usan el registro (routes/auth.js) y la edición del perfil (routes/perfil.js).
 
-// Los correos se manejan sin distinguir mayúsculas y sin espacios (ver migración 002)
+// Correo sin espacios y en minúsculas (migración 002)
 const normalizarCorreo = (correo) => String(correo ?? '').trim().toLowerCase();
 
-// El teléfono se guarda solo con dígitos: "(662) 123-4567" -> "6621234567"
+// Teléfono solo con números, por ejemplo "(662) 123-4567" queda "6621234567"
 const normalizarTelefono = (telefono) => String(telefono ?? '').replace(/\D/g, '');
-const TELEFONO_VALIDO = /^\d{10}$/; // número nacional de México a 10 dígitos
+const TELEFONO_VALIDO = /^\d{10}$/; // Número de México a 10 dígitos
 
-// Texto obligatorio: sin espacios sobrantes; '' si no es texto
+// Quitar espacios sobrantes (si no es texto regresa '')
 const limpiarTexto = (valor) => (typeof valor === 'string' ? valor.trim() : '');
 
-// Id de catálogo: entero positivo o null si no es válido
+// Id de un catálogo: entero positivo, o null si no es válido
 const idValido = (valor) => {
   const n = Number(valor);
   return Number.isInteger(n) && n > 0 ? n : null;

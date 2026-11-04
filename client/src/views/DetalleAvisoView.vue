@@ -212,6 +212,7 @@ const esUrlSegura = (url) => {
 };
 
 // Los adjuntos dependen del storage que se defina; por ahora se abre la URL guardada
+// Preguntar en sistemas si hay servidor de archivos o si los subimos a la nube
 const descargarAdjunto = (adjunto) => {
   if (!esUrlSegura(adjunto.url)) return alert('El archivo no tiene una ubicación válida');
   const link = document.createElement('a');

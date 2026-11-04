@@ -122,6 +122,8 @@ const categorias = [
   { id: 'nomina', nombre: 'Nómina' }
 ];
 
+// Documentos de prueba. Falta definir con Talento y Cultura de donde salen
+// (tabla nueva o los suben ellos) antes de conectarlo a la BD
 const listaDocumentos = ref([
   {
     id: 1,

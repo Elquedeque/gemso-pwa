@@ -154,6 +154,7 @@ const enviarReporte = () => {
   enviando.value = true;
   
   // Simulación de envío (aquí se conectará a la API del backend)
+  // Falta: endpoint POST /api/reportes y su tabla. Ver con quien de sistemas le llegan los reportes
   setTimeout(() => {
     enviando.value = false;
     enviadoConExito.value = true;

@@ -1,7 +1,7 @@
-// Middleware de autenticación.
-// Lee "Authorization: Bearer <token>", lo verifica y deja al usuario en req.usuario.
-// El usuario sale del token firmado, nunca de lo que mande el cliente en query/body.
-// También se carga su departamento actual desde la BD (por si cambió tras el login).
+// Middleware de Autenticación
+// Revisa el token que llega en "Authorization: Bearer <token>" y guarda al usuario en req.usuario.
+// El usuario siempre se saca del token, nunca de lo que mande el cliente.
+// El departamento se consulta en la BD por si le cambiaron de área después del login.
 const jwt = require('jsonwebtoken');
 const db = require('../config/db');
 const { JWT_SECRET } = require('../config/auth');

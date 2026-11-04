@@ -175,7 +175,7 @@ const removeImage = () => {
 };
 
 const publicarAviso = async () => {
-  // El autor es el usuario que inició sesión (guardado por LoginView)
+  // Revisar que haya sesión iniciada antes de publicar
   const sesion = localStorage.getItem('usuario');
   const usuario = sesion ? JSON.parse(sesion) : null;
   if (!usuario?.id_usu) {
@@ -187,8 +187,9 @@ const publicarAviso = async () => {
   isSubmitting.value = true;
 
   try {
-    // Nota: "Destacado" e imagen aún no tienen columna en la BD, por eso no se envían.
-    // El autor lo toma el servidor del token de sesión
+    // Nota: "Destacado" y la imagen todavía no tienen columna en la BD, por eso no se mandan.
+    // TODO: hacer la migracion para 'destacado' y ver donde se van a guardar las imagenes
+    // El autor lo saca el servidor del token de sesión
     const response = await apiFetch('/api/anuncios', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

@@ -1,10 +1,10 @@
 import { createApp } from 'vue';
 import App from './App.vue';
 import router from './router';
-import './style.css'; // variables de color de ambos temas (claro y html.dark)
+import './style.css'; // Colores de los dos temas (claro y oscuro)
 import { aplicarPreferenciasGuardadas } from './utils/tema';
 
-// Tema, tamaño de letra y alto contraste elegidos en Accesibilidad
+// Aplicar el tema, tamaño de letra y contraste que se eligieron en Accesibilidad
 aplicarPreferenciasGuardadas();
 
 const app = createApp(App);

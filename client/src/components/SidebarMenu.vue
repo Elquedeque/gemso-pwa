@@ -97,6 +97,7 @@
 <script setup>
 import { computed } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
+import { usuarioTienePermiso } from '../utils/estadisticas';
 
 const props = defineProps({
   isOpen: {
@@ -115,6 +116,10 @@ const rutaActual = computed(() => route.path);
 const menuPrincipal = [
   { label: 'Inicio', ruta: '/anuncios', iconPath: 'M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z' },
   { label: 'Mis Avisos', ruta: '/Mis-Avisos', iconPath: 'M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H5.17L4 17.17V4h16v12z' },
+  // Solo para usuarios con permiso 'ver_estadisticas' (en la beta, Talento y Cultura)
+  ...(usuarioTienePermiso('ver_estadisticas')
+    ? [{ label: 'Estadísticas', ruta: '/estadisticas', iconPath: 'M5 9.2h3V19H5zM10.6 5h2.8v14h-2.8zm5.6 8H19v6h-2.8z' }]
+    : []),
   { label: 'Documentos', ruta: '/documentos', iconPath: 'M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm0 12H4V8h16v10z' },
   { 
     label: 'Solicitud T&C', 

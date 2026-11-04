@@ -1,7 +1,7 @@
-// Perfil del usuario de la sesión. Requiere sesión (middleware autenticar).
-//   GET /api/perfil -> datos personales y organizacionales del usuario
-//   PUT /api/perfil -> actualiza los datos que el usuario puede editar
-// El usuario sale del token (req.usuario), así cada quien solo ve y edita su propio perfil.
+// Rutas del Perfil (piden sesión iniciada)
+//   GET /api/perfil  Datos personales y laborales del usuario
+//   PUT /api/perfil  Guardar los cambios que el usuario sí puede editar
+// El usuario se saca del token, así cada quien solo ve y edita su propio perfil.
 const express = require('express');
 const db = require('../config/db');
 const autenticar = require('../middleware/autenticar');
@@ -15,9 +15,9 @@ const {
 
 const router = express.Router();
 
-// Consulta del perfil completo (la usan GET y PUT para responder igual).
-// LEFT JOIN: sucursal, empresa y gerente son opcionales (ver migraciones 003-005).
-// Las fechas se devuelven como texto 'YYYY-MM-DD' para evitar desfases por zona horaria.
+// Consulta del perfil completo (la usan GET y PUT para responder lo mismo)
+// Se usa LEFT JOIN porque sucursal, empresa y gerente pueden venir vacíos (migraciones 003 a 005).
+// La fecha se manda como texto 'YYYY-MM-DD' para que no se recorra un día por la zona horaria.
 const CONSULTA_PERFIL = `
   SELECT
     u.id_usu,
@@ -41,6 +41,7 @@ const CONSULTA_PERFIL = `
   WHERE u.id_usu = $1;
 `;
 
+// Endpoint para obtener el perfil
 router.get('/', autenticar, async (req, res) => {
   try {
     const result = await db.query(CONSULTA_PERFIL, [req.usuario.id_usu]);
@@ -54,9 +55,10 @@ router.get('/', autenticar, async (req, res) => {
   }
 });
 
+// Endpoint para editar el perfil
 // Solo se actualizan nombre, correo, teléfono y empresa.
-// Departamento, puesto, sucursal, gerente y fecha de ingreso los administra
-// Talento y Cultura: si el cliente los manda, se ignoran.
+// Departamento, puesto, sucursal, gerente y fecha de ingreso los maneja
+// Talento y Cultura, así que si llegan desde el cliente se ignoran.
 router.put('/', autenticar, async (req, res) => {
   const idUsu = req.usuario.id_usu;
   const nombre = limpiarTexto(req.body.nombre_completo);
@@ -72,7 +74,7 @@ router.put('/', autenticar, async (req, res) => {
   }
 
   try {
-    // El correo no puede pertenecer a otro usuario
+    // 1. Verificar que el correo no sea de otro usuario
     const duplicado = await db.query(
       'SELECT 1 FROM usuarios WHERE LOWER(correo) = $1 AND id_usu <> $2',
       [correo, idUsu]
@@ -81,6 +83,7 @@ router.put('/', autenticar, async (req, res) => {
       return res.status(400).json({ error: 'El correo electrónico ya está registrado' });
     }
 
+    // 2. Guardar los cambios y regresar el perfil actualizado
     await db.query(
       `UPDATE usuarios
        SET nombre_completo = $1, correo = $2, telefono = $3, id_empresa = $4
@@ -91,15 +94,15 @@ router.put('/', autenticar, async (req, res) => {
     const result = await db.query(CONSULTA_PERFIL, [idUsu]);
     res.json({ message: 'Perfil actualizado', perfil: result.rows[0] });
   } catch (error) {
-    // 23505: correo duplicado (dos cambios simultáneos al mismo correo)
+    // Error 23505: correo repetido (por si dos lo cambian al mismo tiempo)
     if (error.code === '23505') {
       return res.status(400).json({ error: 'El correo electrónico ya está registrado' });
     }
-    // 23503: la empresa no existe
+    // Error 23503: la empresa no existe
     if (error.code === '23503') {
       return res.status(400).json({ error: 'La empresa seleccionada no existe' });
     }
-    // 22001: texto más largo de lo permitido por la columna
+    // Error 22001: algún texto es más largo de lo que acepta la columna
     if (error.code === '22001') {
       return res.status(400).json({ error: 'Alguno de los campos excede la longitud permitida' });
     }

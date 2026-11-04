@@ -1,8 +1,8 @@
-// Avisos / comunicados. Todas las rutas requieren sesión (middleware autenticar).
-//   GET  /api/anuncios            -> lista de avisos visibles (?limite=N opcional)
-//   GET  /api/anuncios/:id        -> detalle de un aviso con sus adjuntos
-//   POST /api/anuncios            -> publicar (requiere permiso publicar_avisos)
-//   POST /api/anuncios/:id/leido  -> confirmar lectura
+// Rutas de Avisos / Comunicados (todas piden sesión iniciada)
+//   GET  /api/anuncios            Lista de avisos que el usuario puede ver (?limite=N opcional)
+//   GET  /api/anuncios/:id        Detalle de un aviso con sus adjuntos (y registra que lo vio)
+//   POST /api/anuncios            Publicar un aviso (solo con permiso publicar_avisos)
+//   POST /api/anuncios/:id/leido  Confirmar lectura
 const express = require('express');
 const db = require('../config/db');
 const autenticar = require('../middleware/autenticar');
@@ -10,31 +10,43 @@ const { PERMISO_PUBLICAR_AVISOS, tienePermiso } = require('../services/permisos'
 
 const router = express.Router();
 
-// Valida un id opcional: undefined/null/'' -> null; entero positivo -> número; otro -> NaN
+// Validar un id opcional: si viene vacío regresa null, si no es un entero positivo regresa NaN
 const idOpcional = (valor) => {
   if (valor === undefined || valor === null || valor === '') return null;
   const n = Number(valor);
   return Number.isInteger(n) && n > 0 ? n : NaN;
 };
 
-// Categorías permitidas (deben coincidir con el <select> de CrearAvisoView.vue)
+// Categorías permitidas (tienen que ser las mismas del <select> en CrearAvisoView.vue)
+// Si agrego otra categoria en el formulario, acordarme de ponerla aqui tambien
 const CATEGORIAS_AVISO = ['Corporativo', 'Autofest 2026', 'Talento y Cultura', 'Sistemas / TI', 'General'];
 
-// Regla de visibilidad de anuncios (usada por la lista y el detalle):
-//   avisos generales (sin departamento ni usuario destino)
-//   + avisos dirigidos al departamento del usuario ($2)
-//   + avisos dirigidos personalmente al usuario ($1)
+// Regla de Visibilidad (la usan la lista, el detalle y la confirmación de lectura)
+// Un usuario puede ver:
+//   - Los avisos generales (sin departamento ni usuario destino)
+//   - Los avisos para su departamento ($2)
+//   - Los avisos dirigidos a él directamente ($1)
 const FILTRO_VISIBLES = `
   ((a.id_dep_destino IS NULL AND a.id_usu_destino IS NULL)
    OR a.id_dep_destino = $2
    OR a.id_usu_destino = $1)
 `;
 
-// Endpoint para obtener los anuncios visibles para el usuario de la sesión
+// Guardar la primera vez que un usuario ve un aviso (tabla anuncios_vistos, migración 006)
+// ON CONFLICT: si ya lo había visto se queda la fecha original
+const registrarVista = (idUsu, idAnu) =>
+  db.query(
+    `INSERT INTO anuncios_vistos (id_usu, id_anu)
+     VALUES ($1, $2)
+     ON CONFLICT (id_usu, id_anu) DO NOTHING`,
+    [idUsu, idAnu]
+  );
+
+// Endpoint para obtener los anuncios que le tocan al usuario
 router.get('/', autenticar, async (req, res) => {
   const { id_usu: idUsu, id_departamento } = req.usuario;
 
-  // ?limite=N opcional (1 a 50); sin él se devuelven todos
+  // Límite opcional de 1 a 50; si no viene, se mandan todos
   let limite = null;
   if (req.query.limite !== undefined) {
     limite = Number(req.query.limite);
@@ -65,7 +77,7 @@ router.get('/', autenticar, async (req, res) => {
       ORDER BY a.fecha_creacion DESC
       LIMIT $3;
     `;
-    // LIMIT NULL en PostgreSQL equivale a "sin límite"
+    // Si limite es null, PostgreSQL lo toma como "sin límite"
     const result = await db.query(query, [idUsu, id_departamento, limite]);
     res.json(result.rows);
   } catch (error) {
@@ -75,7 +87,7 @@ router.get('/', autenticar, async (req, res) => {
 });
 
 // Endpoint para obtener el detalle de un anuncio (con sus adjuntos)
-// Solo lo devuelve si es visible para el usuario; si no, responde 404
+// Si el usuario no lo puede ver, se responde 404 como si no existiera
 router.get('/:id', autenticar, async (req, res) => {
   const idAnu = Number(req.params.id);
   const { id_usu: idUsu, id_departamento } = req.usuario;
@@ -109,6 +121,9 @@ router.get('/:id', autenticar, async (req, res) => {
       return res.status(404).json({ error: 'Aviso no encontrado' });
     }
 
+    // Registrar que el usuario abrió el aviso (solo cuenta la primera vez)
+    await registrarVista(idUsu, idAnu);
+
     const adjuntos = await db.query(
       `SELECT id_anu_adj, nombre_archivo, tipo_archivo, url_archivo
        FROM anuncios_adj
@@ -125,9 +140,9 @@ router.get('/:id', autenticar, async (req, res) => {
 });
 
 // Endpoint para publicar un anuncio
-// El autor es siempre el usuario de la sesión (no se acepta id_autor del cliente).
-// Destino opcional: id_dep_destino (un departamento) o id_usu_destino (una persona);
-// sin ninguno, el aviso es general. No se permiten ambos a la vez.
+// El autor siempre es el usuario de la sesión, no se acepta id_autor desde el cliente.
+// Destino opcional: un departamento (id_dep_destino) o una persona (id_usu_destino).
+// Si no viene ninguno, el aviso es general. No se pueden mandar los dos.
 router.post('/', autenticar, async (req, res) => {
   const { titulo, contenido, categoria, urgente } = req.body;
   const idAutor = req.usuario.id_usu;
@@ -152,11 +167,12 @@ router.post('/', autenticar, async (req, res) => {
   }
 
   try {
-    // Solo usuarios con permiso pueden publicar (beta: Talento y Cultura)
+    // 1. Revisar que tenga permiso para publicar (en la beta solo Talento y Cultura)
     if (!(await tienePermiso(idAutor, PERMISO_PUBLICAR_AVISOS))) {
       return res.status(403).json({ error: 'No tienes permiso para publicar avisos' });
     }
 
+    // 2. Guardar el aviso en la BD
     const query = `
       INSERT INTO anuncios (titulo, contenido, categoria, urgente, id_autor, id_dep_destino, id_usu_destino)
       VALUES ($1, $2, $3, $4, $5, $6, $7)
@@ -179,11 +195,11 @@ router.post('/', autenticar, async (req, res) => {
       anuncio: result.rows[0]
     });
   } catch (error) {
-    // 23503: el departamento o el usuario destino no existen
+    // Error 23503: el departamento o el usuario destino no existe
     if (error.code === '23503') {
       return res.status(400).json({ error: 'El departamento o el usuario destino no existe' });
     }
-    // 22001: texto más largo de lo permitido por la columna
+    // Error 22001: algún texto es más largo de lo que acepta la columna
     if (error.code === '22001') {
       return res.status(400).json({ error: 'Alguno de los campos excede la longitud permitida' });
     }
@@ -193,7 +209,7 @@ router.post('/', autenticar, async (req, res) => {
 });
 
 // Endpoint para confirmar la lectura de un anuncio
-// Solo se puede confirmar un aviso que el usuario puede ver (misma regla que la lista)
+// Solo se puede confirmar un aviso que el usuario sí puede ver
 router.post('/:id/leido', autenticar, async (req, res) => {
   const idAnu = Number(req.params.id);
   const { id_usu: idUsu, id_departamento } = req.usuario;
@@ -203,6 +219,7 @@ router.post('/:id/leido', autenticar, async (req, res) => {
   }
 
   try {
+    // 1. Revisar que el aviso sea visible para el usuario
     const visible = await db.query(
       `SELECT 1 FROM anuncios a WHERE a.id_anu = $3 AND ${FILTRO_VISIBLES}`,
       [idUsu, id_departamento, idAnu]
@@ -211,16 +228,20 @@ router.post('/:id/leido', autenticar, async (req, res) => {
       return res.status(404).json({ error: 'Aviso no encontrado' });
     }
 
-    // ON CONFLICT: si ya estaba confirmado, no se duplica (uq_usuario_anuncio)
+    // 2. Registrar la lectura (ON CONFLICT evita duplicarla si ya la había confirmado)
     await db.query(
       `INSERT INTO anuncios_leidos (id_usu, id_anu)
        VALUES ($1, $2)
        ON CONFLICT (id_usu, id_anu) DO NOTHING`,
       [idUsu, idAnu]
     );
+
+    // 3. Se puede confirmar desde la tarjeta sin abrir el detalle; también cuenta como vista
+    await registrarVista(idUsu, idAnu);
+
     res.json({ message: 'Lectura confirmada', id_anu: idAnu, leido: true });
   } catch (error) {
-    // 23503: el aviso se borró entre la verificación y el registro
+    // Error 23503: el aviso se borró justo entre la revisión y el registro
     if (error.code === '23503') {
       return res.status(404).json({ error: 'Aviso no encontrado' });
     }

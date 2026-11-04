@@ -1,11 +1,11 @@
-// Inicio de sesión y registro de usuarios.
-//   POST /api/login     -> devuelve el usuario, sus permisos y un token de sesión
-//   POST /api/usuarios  -> registra un usuario nuevo
+// Rutas de Inicio de Sesión y Registro
+//   POST /api/login     Iniciar sesión (regresa usuario, permisos y token)
+//   POST /api/usuarios  Registrar un usuario nuevo
 const express = require('express');
 const jwt = require('jsonwebtoken');
 const db = require('../config/db');
 const { JWT_SECRET, DURACION_SESION } = require('../config/auth');
-const { PERMISO_PUBLICAR_AVISOS, obtenerPermisos } = require('../services/permisos');
+const { PERMISOS_TYC, obtenerPermisos } = require('../services/permisos');
 const {
   normalizarCorreo,
   normalizarTelefono,
@@ -16,6 +16,9 @@ const {
 const router = express.Router();
 
 // Endpoint de Inicio de Sesión
+// PENDIENTE: la contraseña se compara tal cual, sin cifrar. Meter bcrypt antes de la
+// defensa (seguro lo preguntan). Ojo, hay que avisar antes de instalar el paquete
+// y migrar las contraseñas que ya estan guardadas en la BD.
 router.post('/login', async (req, res) => {
   const { contraseña } = req.body;
   const correo = normalizarCorreo(req.body.correo);
@@ -82,13 +85,14 @@ router.post('/usuarios', async (req, res) => {
     // 1. Verificar si el correo ya existe
     const checkEmail = await db.query('SELECT id_usu FROM usuarios WHERE LOWER(correo) = $1', [correo]);
     if (checkEmail.rows.length > 0) {
+      // TODO: aqui regreso 'message' y en el login 'error'... unificar a 'error' en todos
       return res.status(400).json({ message: 'El correo electrónico ya está registrado.' });
     }
 
-    // 2. Insertar en la base de datos PostgreSQL.
-    //    En la misma sentencia (atómica): si el usuario es de Talento y Cultura,
-    //    se le asigna el permiso de publicar avisos (regla de la beta).
-    //    El gerente no se pide aquí: lo asignará Talento y Cultura.
+    // 2. Insertar en la base de datos PostgreSQL
+    //    En la misma consulta, si es de Talento y Cultura se le dan los permisos
+    //    de publicar avisos y ver sus estadísticas (así quedó para la beta).
+    //    El gerente no se pide aquí, ese lo asigna Talento y Cultura.
     const query = `
       WITH nuevo AS (
         INSERT INTO usuarios (
@@ -111,7 +115,7 @@ router.post('/usuarios', async (req, res) => {
         SELECT nuevo.id_usu, p.id_per
         FROM nuevo
         JOIN departamentos d ON d.id_dep = nuevo.id_departamento
-        JOIN permisos p ON p.nombre = $8
+        JOIN permisos p ON p.nombre = ANY($8::text[])
         WHERE d.nombre = 'Talento y Cultura'
       )
       SELECT id_usu, nombre_completo, correo FROM nuevo;
@@ -125,7 +129,7 @@ router.post('/usuarios', async (req, res) => {
       id_departamento,
       fecha_nacimiento,
       fecha_ingreso,
-      PERMISO_PUBLICAR_AVISOS,
+      PERMISOS_TYC,
       telefono,
       idSucursal,
       idEmpresa
@@ -138,11 +142,11 @@ router.post('/usuarios', async (req, res) => {
       usuario: result.rows[0]
     });
   } catch (error) {
-    // 23505: correo duplicado (p. ej. dos registros simultáneos con el mismo correo)
+    // Error 23505: correo repetido (por si dos se registran al mismo tiempo)
     if (error.code === '23505') {
       return res.status(400).json({ message: 'El correo electrónico ya está registrado.' });
     }
-    // 23503: el departamento, la sucursal o la empresa no existen
+    // Error 23503: el departamento, la sucursal o la empresa no existe
     if (error.code === '23503') {
       return res.status(400).json({ message: 'El departamento, la sucursal o la empresa no existe.' });
     }

@@ -55,6 +55,7 @@ const props = defineProps({
 const emit = defineEmits(['close']);
 
 // Datos mock para notificaciones
+// TODO: sacarlas de los avisos no leidos (ya existe anuncios_leidos en la BD)
 const notificaciones = ref([
   {
     titulo: 'Nuevo comunicado de TyC',
