@@ -66,10 +66,21 @@ export const activarPush = async () => {
   const registro = await navigator.serviceWorker.ready;
   let suscripcion = await registro.pushManager.getSubscription();
   if (!suscripcion) {
-    suscripcion = await registro.pushManager.subscribe({
-      userVisibleOnly: true,
-      applicationServerKey: base64ABytes(llave)
-    });
+    try {
+      suscripcion = await registro.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: base64ABytes(llave)
+      });
+    } catch (error) {
+      // AbortError: el navegador no pudo registrarse en su servicio push.
+      // Pasa en Brave, que trae apagado ese servicio por defecto.
+      if (error.name === 'AbortError') {
+        throw new Error(navigator.brave
+          ? 'Brave trae apagadas las notificaciones push. Actívalas en brave://settings/privacy (opción de usar los servicios de Google para mensajes push), reinicia el navegador y vuelve a intentarlo.'
+          : 'El navegador no pudo conectarse a su servicio de notificaciones. Revisa tu conexión e inténtalo de nuevo.');
+      }
+      throw error;
+    }
   }
 
   // 4. Guardarla en el servidor
