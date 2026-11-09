@@ -99,6 +99,7 @@ import { computed } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { usuarioTienePermiso } from '../utils/estadisticas';
 import { cerrarSesionLocal } from '../api';
+import { desactivarPush } from '../utils/push';
 
 const props = defineProps({
   isOpen: {
@@ -147,8 +148,11 @@ const alNavegar = () => {
   }, 50);
 };
 
-const cerrarSesion = () => {
+const cerrarSesion = async () => {
   emit('close');
+  // Quitar las notificaciones de este dispositivo mientras el token sigue vigente,
+  // para que en un equipo compartido no le lleguen al siguiente usuario
+  await desactivarPush().catch(() => {});
   cerrarSesionLocal(); // borra 'usuario', 'token' y el caché sin conexión
   router.replace('/'); 
 };

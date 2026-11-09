@@ -26,13 +26,30 @@
             </div>
           </div>
 
-          <!-- Notificaciones Push -->
+          <!-- Notificaciones Push (se activan al momento, en este dispositivo) -->
           <div class="setting-option">
             <div class="option-text">
-              <label>Notificaciones Push</label>
-              <span>Recibir alertas sobre nuevos anuncios en el dispositivo. <strong>Se recomienda mantener esta opción activada para no perderte comunicados urgentes o avisos operativos.</strong></span>
+              <label for="toggle-push">Notificaciones Push</label>
+              <span>Recibir alertas sobre nuevos anuncios en este dispositivo, aunque la app esté cerrada. <strong>Se recomienda mantener esta opción activada para no perderte comunicados urgentes o avisos operativos.</strong></span>
+              <span v-if="mensajePush" class="push-estado" :class="{ 'push-error': errorPush }">{{ mensajePush }}</span>
+              <button
+                v-if="pushActivo"
+                type="button"
+                class="test-btn"
+                :disabled="procesandoPush"
+                @click="enviarPrueba"
+              >
+                Enviar notificación de prueba
+              </button>
             </div>
-            <input type="checkbox" v-model="config.notificacionesPush" class="toggle-switch" />
+            <input
+              id="toggle-push"
+              type="checkbox"
+              class="toggle-switch"
+              :checked="pushActivo"
+              :disabled="!pushDisponible || procesandoPush"
+              @change="cambiarPush"
+            />
           </div>
 
           <!-- Correos Informativos -->
@@ -61,21 +78,101 @@
 </template>
 
 <script setup>
-import { ref } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import AppHeader from '../components/AppHeader.vue';
 import SidebarMenu from '../components/SidebarMenu.vue';
 import NotificationsDrawer from '../components/NotificationsDrawer.vue';
+import { estadoPush, activarPush, desactivarPush, probarPush } from '../utils/push';
 
 const isMenuOpen = ref(false);
 const isNotificationsOpen = ref(false);
 
+// ── Notificaciones push ──────────────────────────────────────
+// No se guardan con "Guardar Cambios": el interruptor suscribe o quita
+// este dispositivo en el momento (utils/push.js).
+
+// 'no-soportado' | 'ios-instalar' | 'bloqueado' | 'activo' | 'inactivo'
+const estado = ref('inactivo');
+const procesandoPush = ref(false);
+const mensajePush = ref('');
+const errorPush = ref(false);
+
+const pushActivo = computed(() => estado.value === 'activo');
+const pushDisponible = computed(() => ['activo', 'inactivo'].includes(estado.value));
+
+// Mensaje fijo para los casos donde el interruptor no se puede usar
+const MENSAJES_ESTADO = {
+  'no-soportado': 'Este navegador no permite notificaciones.',
+  'ios-instalar': 'En iPhone primero instala la app: Compartir → "Agregar a inicio", y ábrela desde ahí.',
+  bloqueado: 'Las notificaciones están bloqueadas. Actívalas en la configuración del navegador para este sitio.'
+};
+
+const mostrarMensaje = (texto, esError = false) => {
+  mensajePush.value = texto;
+  errorPush.value = esError;
+};
+
+const actualizarEstado = async () => {
+  estado.value = await estadoPush();
+  mostrarMensaje(MENSAJES_ESTADO[estado.value] || '', estado.value === 'bloqueado');
+};
+
+const cambiarPush = async (event) => {
+  const activar = event.target.checked;
+  procesandoPush.value = true;
+  try {
+    if (activar) {
+      // El navegador muestra su propio aviso de permiso junto a la barra de direcciones
+      if (Notification.permission === 'default') {
+        mostrarMensaje('Permite las notificaciones en el aviso del navegador (junto a la barra de direcciones).');
+      }
+      await activarPush();
+      await actualizarEstado();
+      mostrarMensaje('Notificaciones activadas en este dispositivo.');
+    } else {
+      await desactivarPush();
+      await actualizarEstado();
+      mostrarMensaje('Notificaciones desactivadas en este dispositivo.');
+    }
+  } catch (error) {
+    await actualizarEstado();
+    if (!MENSAJES_ESTADO[estado.value]) mostrarMensaje(error.message, true);
+  } finally {
+    procesandoPush.value = false;
+    event.target.checked = pushActivo.value; // el interruptor refleja el estado real
+  }
+};
+
+const enviarPrueba = async () => {
+  procesandoPush.value = true;
+  try {
+    await probarPush();
+    mostrarMensaje('Notificación de prueba enviada. Debe aparecer en unos segundos.');
+  } catch (error) {
+    mostrarMensaje(error.message, true);
+  } finally {
+    procesandoPush.value = false;
+  }
+};
+
+onMounted(actualizarEstado);
+
+// ── Correos informativos ─────────────────────────────────────
 const config = ref({
-  notificacionesPush: true,
   notificacionesEmail: false
 });
 
-// Por ahora solo se guarda en el navegador. Cuando este lo de push notifications
-// (Service Worker) pasar esto a la BD para que se respete en cualquier dispositivo
+// Por ahora solo se guarda en el navegador. Cuando esté el módulo de correo
+// pasar esto a la BD para que se respete en cualquier dispositivo
+try {
+  const guardado = JSON.parse(localStorage.getItem('pwa_config') || '{}');
+  if (typeof guardado.notificacionesEmail === 'boolean') {
+    config.value.notificacionesEmail = guardado.notificacionesEmail;
+  }
+} catch {
+  // Si lo guardado está dañado se usan los valores por defecto
+}
+
 const guardarAjustes = () => {
   localStorage.setItem('pwa_config', JSON.stringify(config.value));
   alert('Ajustes guardados correctamente');
@@ -192,6 +289,34 @@ const guardarAjustes = () => {
 
 .option-text span strong {
   color: var(--brand-primary, #000080);
+}
+
+.push-estado {
+  color: var(--brand-primary, #000080) !important;
+  font-weight: 600;
+}
+
+.push-estado.push-error {
+  color: #dc2626 !important;
+}
+
+.test-btn {
+  align-self: flex-start;
+  margin-top: 0.6rem;
+  background: transparent;
+  color: var(--brand-primary, #000080);
+  border: 1px solid var(--brand-primary, #000080);
+  padding: 0.4rem 0.9rem;
+  border-radius: 8px;
+  font-size: 0.775rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.test-btn:disabled,
+.toggle-switch:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 /* Fix para mantener el tamaño constante del Checkbox */

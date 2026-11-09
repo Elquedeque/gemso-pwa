@@ -1,12 +1,13 @@
 // Rutas de Avisos / Comunicados (todas piden sesión iniciada)
 //   GET  /api/anuncios            Lista de avisos que el usuario puede ver (?limite=N opcional)
 //   GET  /api/anuncios/:id        Detalle de un aviso con sus adjuntos (y registra que lo vio)
-//   POST /api/anuncios            Publicar un aviso (solo con permiso publicar_avisos)
+//   POST /api/anuncios            Publicar un aviso (solo con permiso publicar_avisos) y mandar push
 //   POST /api/anuncios/:id/leido  Confirmar lectura
 const express = require('express');
 const db = require('../config/db');
 const autenticar = require('../middleware/autenticar');
 const { PERMISO_PUBLICAR_AVISOS, tienePermiso } = require('../services/permisos');
+const { notificarNuevoAviso } = require('../services/notificaciones');
 
 const router = express.Router();
 
@@ -194,6 +195,13 @@ router.post('/', autenticar, async (req, res) => {
       message: 'Anuncio publicado exitosamente',
       anuncio: result.rows[0]
     });
+
+    // 3. Mandar la notificación push a quienes pueden ver el aviso.
+    // Va después de responder para que TyC no espere a que terminen los envíos;
+    // si falla, el aviso ya quedó publicado y solo se registra el error.
+    notificarNuevoAviso(result.rows[0]).catch((error) =>
+      console.error('Error al enviar notificaciones del aviso:', error)
+    );
   } catch (error) {
     // Error 23503: el departamento o el usuario destino no existe
     if (error.code === '23503') {

@@ -11,6 +11,7 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 require('./config/auth'); // Si falta JWT_SECRET en el .env, el servidor no arranca
+require('./config/push'); // Si faltan las llaves VAPID, avisa en consola y sigue sin push
 
 const healthRoutes = require('./routes/health');
 const authRoutes = require('./routes/auth');
@@ -20,6 +21,7 @@ const perfilRoutes = require('./routes/perfil');
 const sucursalesRoutes = require('./routes/sucursales');
 const empresasRoutes = require('./routes/empresas');
 const estadisticasRoutes = require('./routes/estadisticas');
+const pushRoutes = require('./routes/push');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -36,6 +38,7 @@ app.use('/api/perfil', perfilRoutes);
 app.use('/api/sucursales', sucursalesRoutes);
 app.use('/api/empresas', empresasRoutes);
 app.use('/api/estadisticas', estadisticasRoutes);
+app.use('/api/push', pushRoutes);
 
 // Agregamos '0.0.0.0' para que escuche a cualquier dispositivo de tu red
 app.listen(PORT, '0.0.0.0', () => {
