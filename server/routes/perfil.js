@@ -1,6 +1,7 @@
 // Rutas del Perfil (piden sesión iniciada)
 //   GET /api/perfil  Datos personales y laborales del usuario
 //   PUT /api/perfil  Guardar los cambios que el usuario sí puede editar
+//   PUT /api/perfil/preferencias  Guardar el interruptor "Correos informativos" de Ajustes
 // El usuario se saca del token, así cada quien solo ve y edita su propio perfil.
 const express = require('express');
 const db = require('../config/db');
@@ -32,7 +33,8 @@ const CONSULTA_PERFIL = `
     s.nombre AS sucursal,
     u.id_empresa,
     e.nombre AS empresa,
-    g.nombre_completo AS gerente
+    g.nombre_completo AS gerente,
+    u.recibir_correos
   FROM usuarios u
   LEFT JOIN departamentos d ON d.id_dep = u.id_departamento
   LEFT JOIN sucursales s ON s.id_suc = u.id_sucursal
@@ -108,6 +110,24 @@ router.put('/', autenticar, async (req, res) => {
     }
     console.error('Error al actualizar perfil:', error);
     res.status(500).json({ error: 'Error interno del servidor al actualizar el perfil' });
+  }
+});
+
+// Endpoint para guardar las preferencias de Ajustes
+// Por ahora solo "recibir_correos" (migración 011): si está apagado, no se le mandan
+// los resúmenes por correo de los recordatorios. Las notificaciones push se manejan aparte.
+router.put('/preferencias', autenticar, async (req, res) => {
+  const recibirCorreos = req.body?.recibir_correos;
+  if (typeof recibirCorreos !== 'boolean') {
+    return res.status(400).json({ error: 'recibir_correos debe ser verdadero o falso' });
+  }
+
+  try {
+    await db.query('UPDATE usuarios SET recibir_correos = $1 WHERE id_usu = $2', [recibirCorreos, req.usuario.id_usu]);
+    res.json({ message: 'Preferencias guardadas', recibir_correos: recibirCorreos });
+  } catch (error) {
+    console.error('Error al guardar preferencias:', error);
+    res.status(500).json({ error: 'Error interno del servidor al guardar las preferencias' });
   }
 });
 

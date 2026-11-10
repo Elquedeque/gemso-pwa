@@ -57,15 +57,22 @@
             <div class="option-text">
               <label>Correos Informativos</label>
               <span>Recibir un resumen por email con la información relevante enviada durante el periodo.</span>
+              <span v-if="mensajeCorreo" class="push-estado" :class="{ 'push-error': errorCorreo }">{{ mensajeCorreo }}</span>
             </div>
-            <input type="checkbox" v-model="config.notificacionesEmail" class="toggle-switch" />
+            <input
+              type="checkbox"
+              v-model="config.notificacionesEmail"
+              class="toggle-switch"
+              aria-label="Correos informativos"
+              :disabled="cargandoCorreo"
+            />
           </div>
         </article>
 
         <!-- Guardado Rápido -->
         <div class="actions-wrapper">
-          <button class="save-btn" @click="guardarAjustes">
-            Guardar Cambios
+          <button class="save-btn" @click="guardarAjustes" :disabled="cargandoCorreo || guardando">
+            {{ guardando ? 'Guardando...' : 'Guardar Cambios' }}
           </button>
         </div>
       </div>
@@ -83,6 +90,7 @@ import AppHeader from '../components/AppHeader.vue';
 import SidebarMenu from '../components/SidebarMenu.vue';
 import NotificationsDrawer from '../components/NotificationsDrawer.vue';
 import { estadoPush, activarPush, desactivarPush, probarPush } from '../utils/push';
+import { apiFetch } from '../api';
 
 const isMenuOpen = ref(false);
 const isNotificationsOpen = ref(false);
@@ -158,24 +166,52 @@ const enviarPrueba = async () => {
 onMounted(actualizarEstado);
 
 // ── Correos informativos ─────────────────────────────────────
+// La preferencia se guarda en la BD (usuarios.recibir_correos, migración 011)
+// para que se respete en cualquier dispositivo. Si está apagada, el servidor
+// no le manda los resúmenes por correo de los recordatorios.
 const config = ref({
-  notificacionesEmail: false
+  notificacionesEmail: true
 });
+const cargandoCorreo = ref(true);
+const guardando = ref(false);
+const mensajeCorreo = ref('');
+const errorCorreo = ref(false);
 
-// Por ahora solo se guarda en el navegador. Cuando esté el módulo de correo
-// pasar esto a la BD para que se respete en cualquier dispositivo
-try {
-  const guardado = JSON.parse(localStorage.getItem('pwa_config') || '{}');
-  if (typeof guardado.notificacionesEmail === 'boolean') {
-    config.value.notificacionesEmail = guardado.notificacionesEmail;
+const cargarPreferencias = async () => {
+  try {
+    const res = await apiFetch('/api/perfil');
+    if (!res.ok) throw new Error();
+    const perfil = await res.json();
+    config.value.notificacionesEmail = perfil.recibir_correos !== false;
+  } catch {
+    mensajeCorreo.value = 'No se pudo cargar tu preferencia de correos.';
+    errorCorreo.value = true;
+  } finally {
+    cargandoCorreo.value = false;
   }
-} catch {
-  // Si lo guardado está dañado se usan los valores por defecto
-}
+};
 
-const guardarAjustes = () => {
-  localStorage.setItem('pwa_config', JSON.stringify(config.value));
-  alert('Ajustes guardados correctamente');
+onMounted(cargarPreferencias);
+
+const guardarAjustes = async () => {
+  guardando.value = true;
+  mensajeCorreo.value = '';
+  try {
+    const res = await apiFetch('/api/perfil/preferencias', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ recibir_correos: config.value.notificacionesEmail })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || 'No se pudieron guardar los ajustes.');
+    mensajeCorreo.value = 'Ajustes guardados.';
+    errorCorreo.value = false;
+  } catch (error) {
+    mensajeCorreo.value = error.message || 'No se pudieron guardar los ajustes.';
+    errorCorreo.value = true;
+  } finally {
+    guardando.value = false;
+  }
 };
 </script>
 
@@ -350,5 +386,10 @@ const guardarAjustes = () => {
 
 .save-btn:hover {
   opacity: 0.9;
+}
+
+.save-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 </style>

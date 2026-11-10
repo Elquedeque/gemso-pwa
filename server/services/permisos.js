@@ -1,12 +1,13 @@
 // Permisos de Usuario (tablas permisos y usuario_permisos)
-// En la beta solo Talento y Cultura tiene estos permisos (migraciones 001 y 006)
+// En la beta solo Talento y Cultura tiene estos permisos (migraciones 001, 006 y 011)
 const db = require('../config/db');
 
 const PERMISO_PUBLICAR_AVISOS = 'publicar_avisos';
 const PERMISO_VER_ESTADISTICAS = 'ver_estadisticas';
+const PERMISO_RECIBIR_RECORDATORIOS = 'recibir_recordatorios';
 
 // Permisos que recibe automáticamente un usuario nuevo de Talento y Cultura
-const PERMISOS_TYC = [PERMISO_PUBLICAR_AVISOS, PERMISO_VER_ESTADISTICAS];
+const PERMISOS_TYC = [PERMISO_PUBLICAR_AVISOS, PERMISO_VER_ESTADISTICAS, PERMISO_RECIBIR_RECORDATORIOS];
 
 // Obtener los permisos del usuario, por ejemplo ['publicar_avisos']
 const obtenerPermisos = async (idUsu) => {
@@ -27,6 +28,7 @@ const tienePermiso = async (idUsu, permiso) => (await obtenerPermisos(idUsu)).in
 module.exports = {
   PERMISO_PUBLICAR_AVISOS,
   PERMISO_VER_ESTADISTICAS,
+  PERMISO_RECIBIR_RECORDATORIOS,
   PERMISOS_TYC,
   obtenerPermisos,
   tienePermiso

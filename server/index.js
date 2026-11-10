@@ -2,7 +2,7 @@
 // Aquí solo se arma la app y se conectan las rutas. Lo demás está separado en:
 //   config/      conexión a la BD y sesiones (JWT)
 //   middleware/  revisar el token de sesión y los permisos
-//   services/    permisos y validaciones
+//   services/    permisos, validaciones, notificaciones, correos y recordatorios
 //   routes/      endpoints de cada módulo
 
 // Cargar el .env primero, porque config/ usa sus variables
@@ -12,6 +12,8 @@ const express = require('express');
 const cors = require('cors');
 require('./config/auth'); // Si falta JWT_SECRET en el .env, el servidor no arranca
 require('./config/push'); // Si faltan las llaves VAPID, avisa en consola y sigue sin push
+require('./config/correo'); // Si faltan los datos SMTP, avisa en consola y sigue sin correos
+const { iniciarTareas } = require('./services/tareas');
 
 const healthRoutes = require('./routes/health');
 const authRoutes = require('./routes/auth');
@@ -43,4 +45,5 @@ app.use('/api/push', pushRoutes);
 // Agregamos '0.0.0.0' para que escuche a cualquier dispositivo de tu red
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`Servidor Express listo para recibir conexiones en el puerto ${PORT}`);
+  iniciarTareas(); // Recordatorios para Talento y Cultura (services/tareas.js)
 });
