@@ -75,6 +75,10 @@ self.addEventListener('push', (event) => {
     icon: '/pwa-192x192.png',
     badge: '/pwa-64x64.png',
     tag: datos.etiqueta, // misma etiqueta = reemplaza a la anterior en lugar de duplicarse
+    // Sin renotify, al reemplazar una notificación con la misma etiqueta el navegador
+    // lo hace en silencio (sin sonido ni aviso emergente) y parece que no llegó.
+    // Solo se puede usar si hay etiqueta; sin ella el navegador marca error.
+    renotify: Boolean(datos.etiqueta),
     // Los avisos urgentes se quedan en pantalla hasta que el usuario los toque
     requireInteraction: Boolean(datos.urgente),
     data: { url: datos.url || '/' }
