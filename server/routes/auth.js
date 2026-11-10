@@ -12,36 +12,42 @@ const {
   TELEFONO_VALIDO,
   idValido
 } = require('../services/validaciones');
+const { cifrar, verificar, validarNueva } = require('../services/contrasenas');
 
 const router = express.Router();
 
 // Endpoint de Inicio de Sesión
-// PENDIENTE: la contraseña se compara tal cual, sin cifrar. Meter bcrypt antes de la
-// defensa (seguro lo preguntan). Ojo, hay que avisar antes de instalar el paquete
-// y migrar las contraseñas que ya estan guardadas en la BD.
+// Se busca al usuario solo por correo y luego bcrypt compara la contraseña
+// escrita contra el hash guardado (services/contrasenas.js).
 router.post('/login', async (req, res) => {
   const { contraseña } = req.body;
   const correo = normalizarCorreo(req.body.correo);
 
-  if (!correo || !contraseña) {
+  if (!correo || typeof contraseña !== 'string' || !contraseña) {
     return res.status(400).json({ error: 'Debes proporcionar correo y contraseña' });
   }
 
   try {
     const query = `
-      SELECT u.id_usu, u.nombre_completo, u.correo, u.puesto, d.nombre AS departamento
+      SELECT u.id_usu, u.nombre_completo, u.correo, u.puesto, d.nombre AS departamento,
+             u.contraseña AS hash
       FROM usuarios u
       LEFT JOIN departamentos d ON u.id_departamento = d.id_dep
-      WHERE LOWER(u.correo) = $1 AND u.contraseña = $2
+      WHERE LOWER(u.correo) = $1
     `;
 
-    const result = await db.query(query, [correo, contraseña]);
+    const result = await db.query(query, [correo]);
+    const encontrado = result.rows[0];
 
-    if (result.rows.length === 0) {
+    // Si el correo no existe se compara igual (contra un hash ficticio), para que
+    // la respuesta tarde lo mismo y no revele qué correos están registrados.
+    const valida = await verificar(contraseña, encontrado ? encontrado.hash : null);
+    if (!valida) {
       return res.status(401).json({ error: 'Credenciales incorrectas' });
     }
 
-    const usuario = result.rows[0];
+    // El hash nunca sale del servidor
+    const { hash, ...usuario } = encontrado;
     usuario.permisos = await obtenerPermisos(usuario.id_usu);
 
     const token = jwt.sign({ id_usu: usuario.id_usu }, JWT_SECRET, { expiresIn: DURACION_SESION });
@@ -79,6 +85,10 @@ router.post('/usuarios', async (req, res) => {
   }
   if (!TELEFONO_VALIDO.test(telefono)) {
     return res.status(400).json({ error: 'El teléfono debe tener 10 dígitos' });
+  }
+  const errorContraseña = validarNueva(contraseña);
+  if (errorContraseña) {
+    return res.status(400).json({ error: errorContraseña });
   }
 
   try {
@@ -121,10 +131,11 @@ router.post('/usuarios', async (req, res) => {
       SELECT id_usu, nombre_completo, correo FROM nuevo;
     `;
 
+    // Se guarda el hash, nunca la contraseña tal cual
     const values = [
       nombre_completo,
       correo,
-      contraseña,
+      await cifrar(contraseña),
       puesto,
       id_departamento,
       fecha_nacimiento,

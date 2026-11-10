@@ -66,8 +66,9 @@
               id="contrasena"
               type="password" 
               v-model="formulario.contraseña" 
-              maxlength="255"
-              placeholder="••••••••" 
+              minlength="8"
+              maxlength="72"
+              placeholder="Mínimo 8 caracteres" 
               required 
             />
           </div>
@@ -78,7 +79,8 @@
               id="confirmarContrasena"
               type="password" 
               v-model="confirmarPassword" 
-              maxlength="255"
+              minlength="8"
+              maxlength="72"
               placeholder="••••••••" 
               required 
             />
@@ -230,6 +232,12 @@ onMounted(async () => {
 
 const handleRegistro = async () => {
   errorMsg.value = '';
+
+  // Mismas reglas que el servidor (server/services/contrasenas.js)
+  if (formulario.value.contraseña.length < 8) {
+    errorMsg.value = 'La contraseña debe tener al menos 8 caracteres.';
+    return;
+  }
 
   if (formulario.value.contraseña !== confirmarPassword.value) {
     errorMsg.value = 'Las contraseñas no coinciden.';
