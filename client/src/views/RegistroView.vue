@@ -9,7 +9,17 @@
             <p class="subtitle">Ingresa tus datos para registrarte en el portal</p>
         </header>
 
-      <form class="auth-form" @submit.prevent="handleRegistro">
+      <!-- Si se abrió con un enlace de invitación (?invitacion=...), primero se revisa -->
+      <p v-if="estadoInvitacion === 'revisando'" class="aviso-invitacion">Revisando tu invitación...</p>
+
+      <div v-else-if="estadoInvitacion === 'invalida'" class="aviso-invitacion">
+        <p class="aviso-titulo">No se puede usar esta invitación</p>
+        <p>{{ mensajeInvitacion }}</p>
+        <router-link to="/registro" class="login-link" @click="registroAbierto">Registrarme sin invitación</router-link>
+        <router-link to="/login" class="login-link">Ir a Iniciar Sesión</router-link>
+      </div>
+
+      <form v-else class="auth-form" @submit.prevent="handleRegistro">
         <!-- Nombre Completo -->
         <div class="form-group">
           <label for="nombre">Nombre Completo *</label>
@@ -23,22 +33,51 @@
           />
         </div>
 
-        <!-- Correo Electrónico -->
-        <div class="form-group">
-          <label for="correo">Correo Electrónico *</label>
-          <input 
-            id="correo"
-            type="email" 
-            v-model="formulario.correo"
-            maxlength="150"
-            autocomplete="email"
-            autocapitalize="none"
-            autocorrect="off"
-            spellcheck="false"
-            placeholder="usuario@gemso.com"
-            required
-          />
-        </div>
+        <!-- Con invitación: correo y departamento vienen de ella y no se pueden cambiar -->
+        <template v-if="conInvitacion">
+          <div class="form-row">
+            <div class="form-group">
+              <label for="correo">Correo Electrónico</label>
+              <input id="correo" type="email" :value="invitacion.correo" autocomplete="email" readonly />
+            </div>
+            <div class="form-group">
+              <label for="departamento">Departamento</label>
+              <input id="departamento" type="text" :value="invitacion.departamento" readonly />
+            </div>
+          </div>
+          <p class="nota-invitacion">Si alguno de estos datos está mal, pide a Talento y Cultura una invitación nueva.</p>
+        </template>
+
+        <!-- Sin invitación: la persona escribe su correo y elige su departamento -->
+        <template v-else>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="correo">Correo Electrónico *</label>
+              <input
+                id="correo"
+                type="email"
+                v-model="formulario.correo"
+                maxlength="150"
+                autocomplete="email"
+                autocapitalize="none"
+                autocorrect="off"
+                spellcheck="false"
+                placeholder="usuario@gemso.com"
+                required
+              />
+            </div>
+            <div class="form-group">
+              <label for="departamento">Departamento *</label>
+              <select id="departamento" v-model="formulario.id_departamento" required>
+                <option value="" disabled>Selecciona departamento</option>
+                <option v-for="dep in departamentosAbiertos" :key="dep.id_dep" :value="dep.id_dep">
+                  {{ dep.nombre }}
+                </option>
+              </select>
+            </div>
+          </div>
+          <p class="nota-invitacion">¿Eres de Talento y Cultura? Tu cuenta se crea con una invitación de tu equipo.</p>
+        </template>
 
         <!-- Teléfono (10 dígitos; el servidor lo guarda solo con números) -->
         <div class="form-group">
@@ -87,37 +126,17 @@
           </div>
         </div>
 
-        <!-- Puesto y Departamento (Dropdown de la BD) -->
-        <div class="form-row">
-          <div class="form-group">
-            <label for="puesto">Puesto / Cargo *</label>
-            <input 
-              id="puesto"
-              type="text" 
-              v-model="formulario.puesto" 
-              maxlength="100"
-              placeholder="Ej. Practicante, Analista..." 
-              required 
-            />
-          </div>
-
-          <div class="form-group">
-            <label for="departamento">Departamento *</label>
-            <select 
-              id="departamento" 
-              v-model="formulario.id_departamento" 
-              required
-            >
-              <option value="" disabled selected>Selecciona departamento</option>
-              <option 
-                v-for="dep in departamentos" 
-                :key="dep.id_dep" 
-                :value="dep.id_dep"
-              >
-                {{ dep.nombre }}
-              </option>
-            </select>
-          </div>
+        <!-- Puesto -->
+        <div class="form-group">
+          <label for="puesto">Puesto / Cargo *</label>
+          <input 
+            id="puesto"
+            type="text" 
+            v-model="formulario.puesto" 
+            maxlength="100"
+            placeholder="Ej. Practicante, Analista..." 
+            required 
+          />
         </div>
 
         <!-- Empresa del grupo GEMSO y Sucursal (catálogos de la BD) -->
@@ -182,11 +201,12 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
-import { useRouter } from 'vue-router';
+import { ref, computed, onMounted } from 'vue';
+import { useRouter, useRoute } from 'vue-router';
 import { API_URL } from '../api';
 
 const router = useRouter();
+const route = useRoute();
 const isSubmitting = ref(false);
 const errorMsg = ref('');
 const confirmarPassword = ref('');
@@ -194,13 +214,25 @@ const departamentos = ref([]);
 const empresas = ref([]);
 const sucursales = ref([]);
 
+// Invitación del enlace (?invitacion=...). Sin enlace el registro es abierto.
+//   estadoInvitacion: 'ninguna' (registro abierto), 'revisando', 'valida' o 'invalida'
+const tokenInvitacion = ref(typeof route.query.invitacion === 'string' ? route.query.invitacion : '');
+const estadoInvitacion = ref(tokenInvitacion.value ? 'revisando' : 'ninguna');
+const mensajeInvitacion = ref('');
+const invitacion = ref({ correo: '', departamento: '' });
+const conInvitacion = computed(() => estadoInvitacion.value === 'valida');
+
+// En el registro abierto no aparecen los departamentos "solo por invitación"
+// (hoy Talento y Cultura). El servidor también lo revisa.
+const departamentosAbiertos = computed(() => departamentos.value.filter((d) => !d.solo_por_invitacion));
+
 const formulario = ref({
   nombre_completo: '',
   correo: '',
+  id_departamento: '',
   telefono: '',
   contraseña: '',
   puesto: '',
-  id_departamento: '',
   id_empresa: '',
   id_sucursal: '',
   fecha_nacimiento: '',
@@ -219,7 +251,31 @@ const cargarCatalogo = async (ruta, destino) => {
   }
 };
 
+// Revisar con el servidor que el enlace siga sirviendo y traer el correo y el departamento
+const revisarInvitacion = async () => {
+  try {
+    const res = await fetch(`${API_URL}/api/invitaciones/validar/${encodeURIComponent(tokenInvitacion.value)}`);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'No se pudo revisar la invitación.');
+    invitacion.value = data;
+    estadoInvitacion.value = 'valida';
+    return true;
+  } catch (err) {
+    mensajeInvitacion.value = err.message === 'Failed to fetch'
+      ? 'No hay conexión con el servidor. Intenta de nuevo en un momento.'
+      : err.message;
+    estadoInvitacion.value = 'invalida';
+  }
+};
+
+// Dejar la invitación que no sirvió y pasar al registro abierto
+const registroAbierto = () => {
+  tokenInvitacion.value = '';
+  estadoInvitacion.value = 'ninguna';
+};
+
 onMounted(async () => {
+  if (tokenInvitacion.value) revisarInvitacion();
   await Promise.all([
     cargarCatalogo('/api/departamentos', departamentos),
     cargarCatalogo('/api/empresas', empresas),
@@ -249,7 +305,7 @@ const handleRegistro = async () => {
     return;
   }
 
-  if (!formulario.value.id_departamento) {
+  if (!conInvitacion.value && !formulario.value.id_departamento) {
     errorMsg.value = 'Por favor selecciona un departamento.';
     return;
   }
@@ -265,7 +321,10 @@ const handleRegistro = async () => {
     const response = await fetch(`${API_URL}/api/usuarios`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(formulario.value)
+      // Con invitación, el servidor ignora el correo y el departamento del formulario
+      body: JSON.stringify(
+        conInvitacion.value ? { ...formulario.value, invitacion: tokenInvitacion.value } : formulario.value
+      )
     });
 
     const data = await response.json();
@@ -427,6 +486,36 @@ select:focus {
   color: var(--brand-primary, #000080);
   font-weight: 700;
   text-decoration: none;
+}
+
+.aviso-invitacion {
+  text-align: center;
+  font-size: 0.9rem;
+  color: var(--text-secondary, #64748b);
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin: 0;
+}
+
+.aviso-invitacion p {
+  margin: 0;
+}
+
+.aviso-titulo {
+  font-weight: 700;
+  color: var(--text-primary, #0f172a);
+}
+
+.nota-invitacion {
+  font-size: 0.75rem;
+  color: var(--text-secondary, #64748b);
+  margin: -0.6rem 0 0 0;
+}
+
+input[readonly] {
+  opacity: 0.75;
+  cursor: default;
 }
 
 .brand-logo {

@@ -122,6 +122,10 @@ const menuPrincipal = [
   ...(usuarioTienePermiso('ver_estadisticas')
     ? [{ label: 'Estadísticas', ruta: '/estadisticas', iconPath: 'M5 9.2h3V19H5zM10.6 5h2.8v14h-2.8zm5.6 8H19v6h-2.8z' }]
     : []),
+  // Solo para usuarios con permiso 'invitar_colaboradores' (en la beta, Talento y Cultura)
+  ...(usuarioTienePermiso('invitar_colaboradores')
+    ? [{ label: 'Invitaciones', ruta: '/invitaciones', iconPath: 'M15 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm-9-2V7H4v3H1v2h3v3h2v-3h3v-2H6zm9 4c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z' }]
+    : []),
   { label: 'Documentos', ruta: '/documentos', iconPath: 'M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm0 12H4V8h16v10z' },
   { 
     label: 'Solicitud T&C', 

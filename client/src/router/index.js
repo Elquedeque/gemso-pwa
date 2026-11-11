@@ -74,6 +74,12 @@ const routes = [
     component: () => import('../views/EstadisticaAvisoView.vue'),
     beforeEnter: soloConPermiso('ver_estadisticas')
   },
+  {
+    path: '/invitaciones',
+    name: 'invitaciones',
+    component: () => import('../views/InvitacionesView.vue'),
+    beforeEnter: soloConPermiso('invitar_colaboradores')
+  },
   // ── RUTAS DEL SIDEBAR ──────────────────────────────────
   {
     path: '/documentos',

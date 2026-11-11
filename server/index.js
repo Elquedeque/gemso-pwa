@@ -24,6 +24,7 @@ const sucursalesRoutes = require('./routes/sucursales');
 const empresasRoutes = require('./routes/empresas');
 const estadisticasRoutes = require('./routes/estadisticas');
 const pushRoutes = require('./routes/push');
+const invitacionesRoutes = require('./routes/invitaciones');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -41,6 +42,7 @@ app.use('/api/sucursales', sucursalesRoutes);
 app.use('/api/empresas', empresasRoutes);
 app.use('/api/estadisticas', estadisticasRoutes);
 app.use('/api/push', pushRoutes);
+app.use('/api/invitaciones', invitacionesRoutes);
 
 // Agregamos '0.0.0.0' para que escuche a cualquier dispositivo de tu red
 app.listen(PORT, '0.0.0.0', () => {

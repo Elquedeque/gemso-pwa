@@ -1,6 +1,6 @@
 // Envío de correos y plantilla común
 // Todos los correos de la app comparten el mismo diseño: encabezado azul de GEMSO,
-// contenido y un pie que explica cómo dejar de recibirlos.
+// contenido y un pie (por defecto, cómo dejar de recibir los recordatorios).
 const { nodemailer, transporte, correoHabilitado, esPrueba, REMITENTE } = require('../config/correo');
 
 // Los nombres vienen de la BD (los captura cada usuario), así que se escapan
@@ -15,9 +15,14 @@ const escaparHtml = (texto) =>
 
 const AZUL_GEMSO = '#000080'; // mismo azul de marca que el manifest de la PWA
 
-// Arma el HTML completo. "contenido" ya debe venir escapado.
+// Pie de los recordatorios (es el que llevan los correos si no se indica otro)
+const PIE_RECORDATORIOS =
+  'Recibes este correo porque tienes activados los recordatorios de Talento y Cultura en la app de GEMSO. ' +
+  'Para dejar de recibirlo, desactiva "Correos informativos" en Ajustes.';
+
+// Arma el HTML completo. "contenido" ya debe venir escapado; "pie" es texto simple.
 // Se usan tablas y estilos en línea porque muchos programas de correo ignoran el CSS.
-const plantilla = (titulo, contenido) => `<!doctype html>
+const plantilla = (titulo, contenido, pie = PIE_RECORDATORIOS) => `<!doctype html>
 <html lang="es">
 <body style="margin:0;padding:0;background:#f1f5f9;font-family:Arial,Helvetica,sans-serif;color:#0f172a;">
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f1f5f9;padding:24px 12px;">
@@ -29,8 +34,7 @@ const plantilla = (titulo, contenido) => `<!doctype html>
         </td></tr>
         <tr><td style="padding:24px;font-size:15px;line-height:1.5;">${contenido}</td></tr>
         <tr><td style="padding:16px 24px;border-top:1px solid #e2e8f0;font-size:12px;color:#64748b;">
-          Recibes este correo porque tienes activados los recordatorios de Talento y Cultura en la app de GEMSO.
-          Para dejar de recibirlo, desactiva "Correos informativos" en Ajustes.
+          ${escaparHtml(pie)}
         </td></tr>
       </table>
     </td></tr>
@@ -40,14 +44,15 @@ const plantilla = (titulo, contenido) => `<!doctype html>
 
 // Enviar un correo. Regresa la info de nodemailer o lanza el error.
 // "texto" es la versión sin formato, para programas que no muestran HTML.
-const enviarCorreo = async ({ para, asunto, titulo, contenidoHtml, texto }) => {
+// "pie" es opcional: si no se manda, va el pie de los recordatorios.
+const enviarCorreo = async ({ para, asunto, titulo, contenidoHtml, texto, pie }) => {
   if (!correoHabilitado) throw new Error('Los correos están desactivados (faltan datos SMTP en el .env)');
 
   const info = await transporte.sendMail({
     from: REMITENTE,
     to: para,
     subject: asunto,
-    html: plantilla(titulo, contenidoHtml),
+    html: plantilla(titulo, contenidoHtml, pie),
     text: texto
   });
 

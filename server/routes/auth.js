@@ -1,6 +1,6 @@
 // Rutas de Inicio de Sesión y Registro
 //   POST /api/login     Iniciar sesión (regresa usuario, permisos y token)
-//   POST /api/usuarios  Registrar un usuario nuevo
+//   POST /api/usuarios  Registrar un usuario nuevo (abierto, o con invitación para TyC)
 const express = require('express');
 const jwt = require('jsonwebtoken');
 const db = require('../config/db');
@@ -13,6 +13,7 @@ const {
   idValido
 } = require('../services/validaciones');
 const { cifrar, verificar, validarNueva } = require('../services/contrasenas');
+const { huella, buscarPendiente, SQL_PENDIENTE } = require('../services/invitaciones');
 
 const router = express.Router();
 
@@ -64,8 +65,16 @@ router.post('/login', async (req, res) => {
 });
 
 // Endpoint de Registro de Usuarios
+// Hay dos formas de registrarse:
+//   - Abierta: la persona escribe su correo y elige su departamento, menos los marcados
+//     como "solo por invitación" (departamentos.solo_por_invitacion, hoy Talento y Cultura).
+//   - Con invitación (campo "invitacion", routes/invitaciones.js): el correo y el
+//     departamento se toman de la invitación, no de lo que mande el formulario.
+// Así nadie puede elegir por su cuenta Talento y Cultura y quedarse con sus permisos.
 router.post('/usuarios', async (req, res) => {
-  const correo = normalizarCorreo(req.body.correo);
+  const token = typeof req.body.invitacion === 'string' && req.body.invitacion ? req.body.invitacion : null;
+  const correoFormulario = normalizarCorreo(req.body.correo);
+  const idDepartamento = idValido(req.body.id_departamento);
   const telefono = normalizarTelefono(req.body.telefono);
   const idSucursal = idValido(req.body.id_sucursal);
   const idEmpresa = idValido(req.body.id_empresa);
@@ -73,14 +82,14 @@ router.post('/usuarios', async (req, res) => {
     nombre_completo,
     contraseña,
     puesto,
-    id_departamento,
     fecha_nacimiento,
     fecha_ingreso
   } = req.body;
 
-  // Validación básica de campos requeridos
-  if (!nombre_completo || !correo || !telefono || !contraseña || !puesto || !id_departamento ||
-      !idSucursal || !idEmpresa || !fecha_nacimiento || !fecha_ingreso) {
+  // Validación básica de campos requeridos (correo y departamento solo sin invitación)
+  if (!nombre_completo || !telefono || !contraseña || !puesto ||
+      !idSucursal || !idEmpresa || !fecha_nacimiento || !fecha_ingreso ||
+      (!token && (!correoFormulario || !idDepartamento))) {
     return res.status(400).json({ error: 'Todos los campos son obligatorios' });
   }
   if (!TELEFONO_VALIDO.test(telefono)) {
@@ -92,19 +101,54 @@ router.post('/usuarios', async (req, res) => {
   }
 
   try {
-    // 1. Verificar si el correo ya existe
+    // 1. Revisar de dónde salen el correo y el departamento, para dar un mensaje claro
+    let correo = correoFormulario;
+    if (token) {
+      const invitacion = await buscarPendiente(token);
+      if (!invitacion) {
+        return res.status(403).json({ error: 'Esta invitación ya se usó, venció o no existe. Pide una nueva a Talento y Cultura.' });
+      }
+      correo = invitacion.correo;
+    } else {
+      const dep = await db.query('SELECT solo_por_invitacion FROM departamentos WHERE id_dep = $1', [idDepartamento]);
+      if (dep.rows.length === 0) {
+        return res.status(400).json({ error: 'El departamento no existe' });
+      }
+      if (dep.rows[0].solo_por_invitacion) {
+        return res.status(403).json({ error: 'A este departamento solo se entra con una invitación de Talento y Cultura' });
+      }
+    }
+
+    // 2. Verificar si el correo ya existe
     const checkEmail = await db.query('SELECT id_usu FROM usuarios WHERE LOWER(correo) = $1', [correo]);
     if (checkEmail.rows.length > 0) {
       // TODO: aqui regreso 'message' y en el login 'error'... unificar a 'error' en todos
       return res.status(400).json({ message: 'El correo electrónico ya está registrado.' });
     }
 
-    // 2. Insertar en la base de datos PostgreSQL
-    //    En la misma consulta, si es de Talento y Cultura se le dan los permisos
-    //    de publicar avisos y ver sus estadísticas (así quedó para la beta).
+    // 3. Todo en una sola consulta, que PostgreSQL hace completa o no hace:
+    //    - "usada" (solo con invitación) la marca como usada si sigue pendiente. Si dos
+    //      personas mandan el mismo enlace al mismo tiempo, la segunda ya no la encuentra.
+    //    - "origen" junta el correo y el departamento: de la invitación, o del formulario
+    //      si el departamento está abierto. Si ninguno aplica, queda vacío y no se inserta nada.
+    //    - "nuevo" crea al usuario con esos datos.
+    //    - "permiso_tyc": si es de Talento y Cultura se le dan sus permisos (así quedó para la beta).
+    //    Si algo falla (por ejemplo, el correo ya existe), la invitación queda sin usar.
     //    El gerente no se pide aquí, ese lo asigna Talento y Cultura.
     const query = `
-      WITH nuevo AS (
+      WITH usada AS (
+        UPDATE invitaciones i SET fecha_uso = NOW()
+        WHERE $4::char(64) IS NOT NULL AND i.token_hash = $4 AND ${SQL_PENDIENTE}
+        RETURNING i.correo, i.id_departamento
+      ),
+      origen AS (
+        SELECT correo, id_departamento FROM usada
+        UNION ALL
+        SELECT $11::varchar, d.id_dep
+        FROM departamentos d
+        WHERE $4::char(64) IS NULL AND d.id_dep = $12::int AND NOT d.solo_por_invitacion
+      ),
+      nuevo AS (
         INSERT INTO usuarios (
           nombre_completo,
           correo,
@@ -117,7 +161,10 @@ router.post('/usuarios', async (req, res) => {
           id_sucursal,
           id_empresa
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $9, $10, $11)
+        -- Con INSERT ... SELECT, PostgreSQL no deduce el tipo de los parámetros: se indica con ::
+        SELECT $1::varchar, origen.correo, $2::varchar, $3::varchar, origen.id_departamento,
+               $5::date, $6::date, $8::varchar, $9::int, $10::int
+        FROM origen
         RETURNING id_usu, nombre_completo, correo, id_departamento
       ),
       permiso_tyc AS (
@@ -125,7 +172,7 @@ router.post('/usuarios', async (req, res) => {
         SELECT nuevo.id_usu, p.id_per
         FROM nuevo
         JOIN departamentos d ON d.id_dep = nuevo.id_departamento
-        JOIN permisos p ON p.nombre = ANY($8::text[])
+        JOIN permisos p ON p.nombre = ANY($7::text[])
         WHERE d.nombre = 'Talento y Cultura'
       )
       SELECT id_usu, nombre_completo, correo FROM nuevo;
@@ -134,19 +181,29 @@ router.post('/usuarios', async (req, res) => {
     // Se guarda el hash, nunca la contraseña tal cual
     const values = [
       nombre_completo,
-      correo,
       await cifrar(contraseña),
       puesto,
-      id_departamento,
+      token ? huella(token) : null,
       fecha_nacimiento,
       fecha_ingreso,
       PERMISOS_TYC,
       telefono,
       idSucursal,
-      idEmpresa
+      idEmpresa,
+      token ? null : correo,
+      token ? null : idDepartamento
     ];
 
     const result = await db.query(query, values);
+
+    // Entre el paso 1 y el 3 alguien más usó la invitación (o cerraron el departamento)
+    if (result.rows.length === 0) {
+      return res.status(403).json({
+        error: token
+          ? 'Esta invitación ya se usó. Pide una nueva a Talento y Cultura.'
+          : 'A este departamento solo se entra con una invitación de Talento y Cultura'
+      });
+    }
 
     res.status(201).json({
       message: 'Usuario registrado exitosamente',
@@ -157,9 +214,9 @@ router.post('/usuarios', async (req, res) => {
     if (error.code === '23505') {
       return res.status(400).json({ message: 'El correo electrónico ya está registrado.' });
     }
-    // Error 23503: el departamento, la sucursal o la empresa no existe
+    // Error 23503: la sucursal o la empresa no existe
     if (error.code === '23503') {
-      return res.status(400).json({ message: 'El departamento, la sucursal o la empresa no existe.' });
+      return res.status(400).json({ message: 'La sucursal o la empresa no existe.' });
     }
     console.error('Error al registrar usuario:', error);
     res.status(500).json({ message: 'Error interno del servidor al intentar registrar.' });
