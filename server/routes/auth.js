@@ -31,7 +31,7 @@ router.post('/login', async (req, res) => {
   try {
     const query = `
       SELECT u.id_usu, u.nombre_completo, u.correo, u.puesto, d.nombre AS departamento,
-             u.contraseña AS hash
+             u.contraseña AS hash, u.activo
       FROM usuarios u
       LEFT JOIN departamentos d ON u.id_departamento = d.id_dep
       WHERE LOWER(u.correo) = $1
@@ -47,8 +47,14 @@ router.post('/login', async (req, res) => {
       return res.status(401).json({ error: 'Credenciales incorrectas' });
     }
 
+    // Cuenta desactivada por Talento y Cultura (migración 013). Se revisa después de la
+    // contraseña, para no revelarle a cualquiera qué cuentas existen y están desactivadas.
+    if (!encontrado.activo) {
+      return res.status(403).json({ error: 'Tu cuenta está desactivada. Comunícate con Talento y Cultura.' });
+    }
+
     // El hash nunca sale del servidor
-    const { hash, ...usuario } = encontrado;
+    const { hash, activo, ...usuario } = encontrado;
     usuario.permisos = await obtenerPermisos(usuario.id_usu);
 
     const token = jwt.sign({ id_usu: usuario.id_usu }, JWT_SECRET, { expiresIn: DURACION_SESION });

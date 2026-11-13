@@ -50,12 +50,12 @@ const CONSULTA_FECHAS = `
   eventos AS (
     SELECT dias.dia, u.id_usu, 'cumpleanos' AS tipo, NULL::int AS anios
     FROM dias
-    JOIN usuarios u ON ${coincideDia('u.fecha_nacimiento')}
+    JOIN usuarios u ON u.activo AND ${coincideDia('u.fecha_nacimiento')}
     UNION ALL
     SELECT dias.dia, u.id_usu, 'aniversario' AS tipo,
            (EXTRACT(YEAR FROM dias.dia) - EXTRACT(YEAR FROM u.fecha_ingreso))::int AS anios
     FROM dias
-    JOIN usuarios u ON ${coincideDia('u.fecha_ingreso')}
+    JOIN usuarios u ON u.activo AND ${coincideDia('u.fecha_ingreso')}
     WHERE EXTRACT(YEAR FROM dias.dia) > EXTRACT(YEAR FROM u.fecha_ingreso)
   )
   SELECT TO_CHAR(e.dia, 'YYYY-MM-DD') AS dia, e.tipo, e.anios,
@@ -76,6 +76,7 @@ const obtenerDestinatarios = async () => {
      JOIN usuario_permisos up ON up.id_usu = u.id_usu
      JOIN permisos p ON p.id_per = up.id_per
      WHERE p.nombre = $1
+       AND u.activo -- los desactivados no reciben recordatorios (migración 013)
      ORDER BY u.id_usu`,
     [PERMISO_RECIBIR_RECORDATORIOS]
   );

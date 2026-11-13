@@ -52,6 +52,7 @@ const notificarNuevoAviso = async (anuncio) => {
      FROM suscripciones_push s
      INNER JOIN usuarios u ON u.id_usu = s.id_usu
      WHERE u.id_usu <> $1
+       AND u.activo -- los desactivados no reciben notificaciones (migración 013)
        AND (($2::int IS NULL AND $3::int IS NULL)
             OR u.id_departamento = $2
             OR u.id_usu = $3)`,

@@ -8,13 +8,10 @@ const db = require('../config/db');
 const autenticar = require('../middleware/autenticar');
 const requierePermiso = require('../middleware/requierePermiso');
 const { PERMISO_INVITAR_COLABORADORES } = require('../services/permisos');
-const { normalizarCorreo, idValido } = require('../services/validaciones');
+const { normalizarCorreo, idValido, CORREO_VALIDO } = require('../services/validaciones');
 const invitaciones = require('../services/invitaciones');
 
 const router = express.Router();
-
-// Forma básica de un correo: algo@algo.algo, sin espacios
-const CORREO_VALIDO = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 // Lo usa la pantalla de registro al abrir el enlace, antes de que la persona tenga cuenta.
 // Para un enlace usado, vencido o inventado se responde lo mismo, sin dar detalles.

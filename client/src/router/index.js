@@ -95,6 +95,18 @@ const routes = [
     component: () => import('../views/InvitacionesView.vue'),
     beforeEnter: soloConPermiso('invitar_colaboradores')
   },
+  {
+    path: '/colaboradores',
+    name: 'colaboradores',
+    component: () => import('../views/ColaboradoresView.vue'),
+    beforeEnter: soloConPermiso('gestionar_colaboradores')
+  },
+  {
+    path: '/colaboradores/:id',
+    name: 'colaborador',
+    component: () => import('../views/ColaboradorView.vue'),
+    beforeEnter: soloConPermiso('gestionar_colaboradores')
+  },
   // ── RUTAS DEL SIDEBAR ──────────────────────────────────
   {
     path: '/documentos',

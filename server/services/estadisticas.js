@@ -37,7 +37,8 @@ const CTE_DESTINATARIOS = `
         ELSE 'pendiente'
       END AS estado
     FROM anuncios a
-    JOIN usuarios u ON u.id_usu <> a.id_autor AND (
+    -- Los desactivados (migración 013) no cuentan como destinatarios
+    JOIN usuarios u ON u.id_usu <> a.id_autor AND u.activo AND (
          (a.id_dep_destino IS NULL AND a.id_usu_destino IS NULL)
          OR a.id_dep_destino = u.id_departamento
          OR a.id_usu_destino = u.id_usu)

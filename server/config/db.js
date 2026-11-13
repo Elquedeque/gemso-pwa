@@ -11,6 +11,28 @@ const pool = new Pool({
   port: process.env.DB_PORT,
 });
 
+// Ejecutar varias consultas como una sola: si alguna falla, no se guarda ninguna.
+// Ejemplo:
+//   await db.transaccion(async (cliente) => {
+//     await cliente.query('UPDATE ...');
+//     await cliente.query('INSERT ...');
+//   });
+const transaccion = async (fn) => {
+  const cliente = await pool.connect();
+  try {
+    await cliente.query('BEGIN');
+    const resultado = await fn(cliente);
+    await cliente.query('COMMIT');
+    return resultado;
+  } catch (error) {
+    await cliente.query('ROLLBACK');
+    throw error;
+  } finally {
+    cliente.release();
+  }
+};
+
 module.exports = {
   query: (text, params) => pool.query(text, params),
+  transaccion
 };

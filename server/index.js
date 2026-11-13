@@ -26,6 +26,7 @@ const empresasRoutes = require('./routes/empresas');
 const estadisticasRoutes = require('./routes/estadisticas');
 const pushRoutes = require('./routes/push');
 const invitacionesRoutes = require('./routes/invitaciones');
+const colaboradoresRoutes = require('./routes/colaboradores');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -44,6 +45,7 @@ app.use('/api/empresas', empresasRoutes);
 app.use('/api/estadisticas', estadisticasRoutes);
 app.use('/api/push', pushRoutes);
 app.use('/api/invitaciones', invitacionesRoutes);
+app.use('/api/colaboradores', colaboradoresRoutes);
 
 // Una ruta de /api que no existe responde con JSON, no con la página de la app
 app.use('/api', (req, res) => {
