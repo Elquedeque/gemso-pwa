@@ -1,6 +1,8 @@
 // Rutas de Avisos / Comunicados (todas piden sesión iniciada)
 //   GET  /api/anuncios            Lista de avisos que el usuario puede ver (?limite=N y ?destacados=1 opcionales)
 //   GET  /api/anuncios/destinatarios  Personas a las que se puede dirigir un aviso (solo con permiso publicar_avisos)
+//   GET  /api/anuncios/notificaciones          Campana: avisos sin abrir y cuántos son nuevos
+//   POST /api/anuncios/notificaciones/leidas   Campana: "Marcar todas como leídas"
 //   GET  /api/anuncios/:id       Detalle de un aviso con sus adjuntos (y registra que lo vio)
 //   POST /api/anuncios            Publicar un aviso (solo con permiso publicar_avisos) y mandar push
 //   POST /api/anuncios/:id/leido  Confirmar lectura
@@ -109,6 +111,67 @@ router.get('/destinatarios', autenticar, requierePermiso(PERMISO_PUBLICAR_AVISOS
   } catch (error) {
     console.error('Error al obtener destinatarios:', error);
     res.status(500).json({ error: 'Error al consultar la base de datos' });
+  }
+});
+
+// ── Campana de notificaciones (migración 015) ─────────────────────────
+// Avisos que el usuario puede ver y todavía no ha abierto (sin fila en anuncios_vistos),
+// sin contar los que él mismo publicó. "Nueva" = publicada después de la última vez
+// que tocó "Marcar todas como leídas" (o de su registro, si nunca lo ha hecho).
+const LIMITE_CAMPANA = 20;
+const SQL_CORTE_CAMPANA = `(SELECT COALESCE(notificaciones_vistas_hasta, fecha_creacion, 'epoch')
+                            FROM usuarios WHERE id_usu = $1)`;
+const SQL_SIN_ABRIR = `
+  ${FILTRO_VISIBLES}
+  AND a.id_autor <> $1
+  AND NOT EXISTS (SELECT 1 FROM anuncios_vistos v WHERE v.id_anu = a.id_anu AND v.id_usu = $1)
+`;
+
+router.get('/notificaciones', autenticar, async (req, res) => {
+  const { id_usu: idUsu, id_departamento } = req.usuario;
+  try {
+    // Una sola consulta para la lista y los contadores, así siempre coinciden entre sí
+    // (con dos consultas, abrir un aviso justo en medio daba una lista y un contador distintos).
+    // Las funciones de ventana (OVER ()) cuentan todos los avisos sin abrir antes del LIMIT.
+    const result = await db.query(
+      `WITH sin_abrir AS (
+         SELECT a.id_anu, a.titulo, LEFT(a.contenido, 160) AS contenido, a.categoria, a.urgente,
+                a.fecha_creacion, a.id_autor,
+                a.fecha_creacion > ${SQL_CORTE_CAMPANA} AS nueva
+         FROM anuncios a
+         WHERE ${SQL_SIN_ABRIR}
+       )
+       SELECT s.id_anu, s.titulo, s.contenido, s.categoria, s.urgente, s.fecha_creacion, s.nueva,
+              u.nombre_completo AS autor,
+              (COUNT(*) OVER ())::int AS total_sin_abrir,
+              (COUNT(*) FILTER (WHERE s.nueva) OVER ())::int AS total_nuevas
+       FROM sin_abrir s
+       INNER JOIN usuarios u ON u.id_usu = s.id_autor
+       ORDER BY s.fecha_creacion DESC
+       LIMIT ${LIMITE_CAMPANA}`,
+      [idUsu, id_departamento]
+    );
+    const primera = result.rows[0];
+    res.json({
+      sin_abrir: primera ? primera.total_sin_abrir : 0,
+      nuevas: primera ? primera.total_nuevas : 0,
+      avisos: result.rows.map(({ total_sin_abrir, total_nuevas, ...aviso }) => aviso)
+    });
+  } catch (error) {
+    console.error('Error al obtener notificaciones:', error);
+    res.status(500).json({ error: 'Error al consultar la base de datos' });
+  }
+});
+
+// "Marcar todas como leídas": solo guarda la hora. Los avisos siguen en la lista hasta
+// que se abran, y no se registran como vistos (no cambia las estadísticas de TyC).
+router.post('/notificaciones/leidas', autenticar, async (req, res) => {
+  try {
+    await db.query('UPDATE usuarios SET notificaciones_vistas_hasta = NOW() WHERE id_usu = $1', [req.usuario.id_usu]);
+    res.json({ message: 'Notificaciones marcadas como leídas', nuevas: 0 });
+  } catch (error) {
+    console.error('Error al marcar notificaciones:', error);
+    res.status(500).json({ error: 'Error al guardar' });
   }
 });
 

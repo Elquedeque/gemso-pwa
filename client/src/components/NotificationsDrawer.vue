@@ -11,39 +11,57 @@
         <button class="close-btn" @click="$emit('close')">✕</button>
       </div>
 
-      <!-- Contenido Principal: Lista de Notificaciones -->
+      <!-- Contenido Principal: avisos que todavía no has abierto -->
       <div class="notifications-body">
-        <div v-if="notificaciones.length === 0" class="empty-state">
-          <p>No tienes notificaciones pendientes.</p>
+        <p v-if="campana.error && campana.avisos.length === 0" class="empty-state">
+          {{ campana.error }}
+          <button class="clear-all-btn" @click="cargarCampana(true)">Reintentar</button>
+        </p>
+        <p v-else-if="campana.cargando && campana.avisos.length === 0" class="empty-state">Cargando...</p>
+        <div v-else-if="campana.avisos.length === 0" class="empty-state">
+          <p>Estás al día: ya abriste todos tus avisos.</p>
         </div>
 
-        <div 
-          v-for="(notif, index) in notificaciones" 
-          :key="index" 
-          class="notification-item"
-          :class="{ 'unread': !notif.leida }"
-          @click="marcarComoLeida(index)"
-        >
-          <div class="notif-header">
-            <span class="notif-title">{{ notif.titulo }}</span>
-            <span class="notif-time">{{ notif.hora }}</span>
-          </div>
-          <p class="notif-desc">{{ notif.descripcion }}</p>
-        </div>
+        <template v-else>
+          <p class="resumen">
+            {{ campana.sinAbrir === 1 ? 'Tienes 1 aviso sin abrir' : `Tienes ${campana.sinAbrir} avisos sin abrir` }}
+          </p>
+          <button
+            v-for="aviso in campana.avisos"
+            :key="aviso.id_anu"
+            type="button"
+            class="notification-item"
+            :class="{ unread: aviso.nueva, urgente: aviso.urgente }"
+            @click="abrirAviso(aviso)"
+          >
+            <span class="notif-header">
+              <span class="notif-categoria">{{ aviso.urgente ? 'Urgente' : aviso.categoria }}</span>
+              <span class="notif-time">{{ tiempoRelativo(aviso.fecha_creacion) }}</span>
+            </span>
+            <span class="notif-title">{{ aviso.titulo }}</span>
+            <span class="notif-desc">{{ aviso.contenido }}</span>
+          </button>
+        </template>
       </div>
 
       <!-- Footer del Panel -->
-      <div class="notifications-footer" v-if="notificaciones.length > 0">
-        <button class="clear-all-btn" @click="marcarTodasComoLeidas">
+      <div class="notifications-footer">
+        <button v-if="campana.nuevas > 0" class="clear-all-btn" :disabled="marcando" @click="marcarTodas">
           Marcar todas como leídas
         </button>
+        <button class="clear-all-btn secundario" @click="verTodos">Ver todos los avisos</button>
       </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref } from 'vue';
+// Panel de la campana: avisos que el usuario puede ver y no ha abierto (utils/campana.js).
+// Resaltados los nuevos (publicados después de "Marcar todas como leídas").
+// Al tocar uno se abre el aviso, y eso lo registra como visto en las estadísticas.
+import { ref, watch } from 'vue';
+import { useRouter } from 'vue-router';
+import { campana, cargarCampana, quitarDeCampana, marcarTodasLeidas, tiempoRelativo } from '../utils/campana';
 
 const props = defineProps({
   isOpen: {
@@ -53,36 +71,34 @@ const props = defineProps({
 });
 
 const emit = defineEmits(['close']);
+const router = useRouter();
+const marcando = ref(false);
 
-// Datos mock para notificaciones
-// TODO: sacarlas de los avisos no leidos (ya existe anuncios_leidos en la BD)
-const notificaciones = ref([
-  {
-    titulo: 'Nuevo comunicado de TyC',
-    descripcion: 'Se han actualizado las fechas del período vacacional 2026.',
-    hora: 'Hace 10 min',
-    leida: false
-  },
-  {
-    titulo: 'Mantenimiento de Servidores',
-    descripcion: 'El sistema estará fuera de servicio hoy a las 11:00 PM.',
-    hora: 'Hace 2 horas',
-    leida: false
-  },
-  {
-    titulo: 'Bienvenido al Portal Gemso',
-    descripcion: 'Explora los nuevos módulos de documentos y avisos.',
-    hora: 'Ayer',
-    leida: true
-  }
-]);
+// Al abrir el panel siempre se pide la lista actualizada
+watch(() => props.isOpen, (abierto) => {
+  if (abierto) cargarCampana(true);
+});
 
-const marcarComoLeida = (index) => {
-  notificaciones.value[index].leida = true;
+const abrirAviso = (aviso) => {
+  quitarDeCampana(aviso.id_anu);
+  emit('close');
+  router.push(`/mis-avisos/${aviso.id_anu}`);
 };
 
-const marcarTodasComoLeidas = () => {
-  notificaciones.value.forEach(n => n.leida = true);
+const verTodos = () => {
+  emit('close');
+  router.push('/mis-avisos');
+};
+
+const marcarTodas = async () => {
+  marcando.value = true;
+  try {
+    await marcarTodasLeidas();
+  } catch (error) {
+    campana.value.error = error.message;
+  } finally {
+    marcando.value = false;
+  }
 };
 </script>
 
@@ -174,7 +190,20 @@ const marcarTodasComoLeidas = () => {
   font-size: 0.9rem;
 }
 
+.resumen {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--text-secondary, #64748b);
+}
+
 .notification-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  color: inherit;
   padding: 0.85rem;
   border-radius: 10px;
   background-color: var(--bg-primary, #f1f5f9);
@@ -183,17 +212,37 @@ const marcarTodasComoLeidas = () => {
   transition: all 0.2s ease;
 }
 
+.notification-item:hover,
+.notification-item:focus-visible {
+  border-color: var(--brand-primary, #000080);
+}
+
 .notification-item.unread {
   background-color: var(--bg-surface, #ffffff);
   border-left: 4px solid var(--brand-accent, #0284c7);
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
 }
 
+.notification-item.urgente {
+  border-left: 4px solid var(--color-danger, #dc2626);
+}
+
 .notif-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 0.35rem;
+  gap: 0.5rem;
+}
+
+.notif-categoria {
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--tint-blue-text, #2563eb);
+}
+
+.notification-item.urgente .notif-categoria {
+  color: var(--color-danger, #dc2626);
 }
 
 .notif-title {
@@ -212,6 +261,10 @@ const marcarTodasComoLeidas = () => {
   font-size: 0.8rem;
   color: var(--text-secondary, #475569);
   line-height: 1.35;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .notifications-footer {
@@ -219,7 +272,18 @@ const marcarTodasComoLeidas = () => {
   padding-top: 1rem;
   border-top: 1px solid var(--border-color, #e2e8f0);
   display: flex;
-  justify-content: center;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.clear-all-btn.secundario {
+  color: var(--text-secondary, #64748b);
+}
+
+.clear-all-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .clear-all-btn {

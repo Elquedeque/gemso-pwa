@@ -115,6 +115,7 @@
 import { ref, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { apiFetch } from '../api';
+import { quitarDeCampana } from '../utils/campana';
 import AppHeader from '../components/AppHeader.vue';
 import SidebarMenu from '../components/SidebarMenu.vue';
 import NotificationsDrawer from '../components/NotificationsDrawer.vue';
@@ -170,6 +171,8 @@ const cargarAviso = async () => {
       return;
     }
     aviso.value = mapearAviso(data);
+    // Abrirlo lo registra como visto: ya no va en la campana
+    quitarDeCampana(data.id_anu);
   } catch (error) {
     console.error('Error al cargar el aviso:', error);
     errorCarga.value = 'No se pudo conectar con el servidor';

@@ -15,21 +15,37 @@
     </div>
 
     <!-- Botón de Notificaciones -->
-    <button 
-      class="icon-btn" 
-      @click="$emit('toggle-notifications')" 
-      aria-label="Notificaciones" 
+    <button
+      class="icon-btn campana-btn"
+      @click="$emit('toggle-notifications')"
+      :aria-label="etiquetaCampana"
       title="Ver notificaciones"
     >
       <svg viewBox="0 0 24 24" class="svg-icon">
         <path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.89 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z" fill="currentColor"/>
       </svg>
+      <!-- Contador de avisos nuevos (utils/campana.js) -->
+      <span v-if="campana.nuevas > 0" class="contador" aria-hidden="true">
+        {{ campana.nuevas > 9 ? '9+' : campana.nuevas }}
+      </span>
     </button>
   </header>
 </template>
 
 <script setup>
+import { computed, onMounted } from 'vue';
+import { campana, cargarCampana } from '../utils/campana';
+
 defineEmits(['toggle-menu', 'toggle-notifications']);
+
+// Para lectores de pantalla: "Notificaciones, 3 nuevas"
+const etiquetaCampana = computed(() => {
+  const n = campana.value.nuevas;
+  if (n === 0) return 'Notificaciones';
+  return `Notificaciones, ${n} ${n === 1 ? 'nueva' : 'nuevas'}`;
+});
+
+onMounted(() => cargarCampana());
 </script>
 
 <style scoped>
@@ -67,6 +83,28 @@ defineEmits(['toggle-menu', 'toggle-notifications']);
 .svg-icon {
   width: 20px;
   height: 20px;
+}
+
+.campana-btn {
+  position: relative;
+}
+
+.contador {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  box-sizing: border-box;
+  border-radius: 999px;
+  background: #dc2626;
+  color: #ffffff;
+  border: 2px solid var(--bg-surface, #ffffff);
+  font-size: 0.65rem;
+  font-weight: 700;
+  line-height: 14px;
+  text-align: center;
 }
 
 /* Logo más destacado (se incrementó la altura de 36px a 48px) */
