@@ -75,9 +75,10 @@
           @touchend="onTouchEnd"
           @click="navegarA(`/mis-avisos/${avisoActual.id}`)"
         >
-          <!-- Panel con el color de la marca (los avisos todavía no tienen imagen) -->
+          <!-- Imagen del aviso o, si no tiene, un panel con el color de la marca -->
           <div class="card-image-wrapper">
-            <div class="featured-panel">
+            <img v-if="avisoActual.imagenUrl" :src="avisoActual.imagenUrl" :alt="avisoActual.titulo" class="featured-image" />
+            <div v-else class="featured-panel">
               <p class="featured-extracto">{{ avisoActual.extracto }}</p>
             </div>
 
@@ -174,6 +175,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { apiFetch } from '../api';
+import { urlDeArchivo } from '../utils/archivos';
 import AppHeader from '../components/AppHeader.vue';
 import SidebarMenu from '../components/SidebarMenu.vue';
 import NotificationsDrawer from '../components/NotificationsDrawer.vue';
@@ -278,14 +280,30 @@ const cargarDestacados = async () => {
       autor: a.autor,
       fecha: formatearFechaCorta(a.fecha_creacion),
       extracto: recortar(a.contenido, 140),
-      extractoTV: recortar(a.contenido, 320)
+      extractoTV: recortar(a.contenido, 320),
+      tieneImagen: a.tiene_imagen,
+      imagenUrl: null
     }));
     currentIndex.value = 0;
+    cargarImagenesDestacados();
   } catch (error) {
     console.error('Error al cargar avisos destacados:', error);
     errorDestacados.value = 'No se pudo conectar con el servidor';
   } finally {
     cargandoDestacados.value = false;
+  }
+};
+
+// Las imágenes piden sesión: se descargan con el token y se muestran como blob URL.
+// Mientras llegan (o si alguna falla) se ve el panel de color.
+const liberarImagenes = () => {
+  for (const a of avisosDestacados.value) if (a.imagenUrl) URL.revokeObjectURL(a.imagenUrl);
+};
+const cargarImagenesDestacados = () => {
+  for (const aviso of avisosDestacados.value.filter((a) => a.tieneImagen)) {
+    urlDeArchivo(`/api/anuncios/${aviso.id}/imagen`)
+      .then((url) => { aviso.imagenUrl = url; })
+      .catch(() => {});
   }
 };
 
@@ -367,6 +385,7 @@ onMounted(() => {
 
 onUnmounted(() => {
   stopAutoSlide();
+  liberarImagenes();
 });
 </script>
 
@@ -553,7 +572,14 @@ onUnmounted(() => {
   background-color: #000000;
 }
 
-/* Panel de color en lugar de imagen: azul de marca, rojo si es urgente */
+.featured-image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Panel de color cuando el aviso no tiene imagen: azul de marca, rojo si es urgente */
 .featured-panel {
   width: 100%;
   height: 100%;
@@ -792,6 +818,11 @@ onUnmounted(() => {
 .featured-section:fullscreen .card-image-wrapper {
   height: 100%;
   aspect-ratio: auto;
+}
+
+/* En Modo TV la imagen se ve completa, sin recortar */
+.featured-section:fullscreen .featured-image {
+  object-fit: contain;
 }
 
 /* En Modo TV el texto va en la capa de abajo; el panel solo da el color */

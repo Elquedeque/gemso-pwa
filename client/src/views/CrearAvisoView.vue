@@ -120,6 +120,20 @@
           />
         </div>
 
+        <!-- Imagen del aviso (opcional): se ve en el carrusel y en el detalle -->
+        <div class="form-group">
+          <label for="imagen">Imagen del aviso <span class="opcional">(opcional)</span></label>
+          <input id="imagen" type="file" class="archivo-oculto" :accept="REGLAS_ARCHIVOS.imagen.accept" @change="elegirImagen" />
+          <div v-if="imagenVista" class="imagen-vista">
+            <img :src="imagenVista" alt="Vista previa de la imagen del aviso" />
+            <button type="button" class="quitar-btn" @click="quitarImagen">✕ Quitar</button>
+          </div>
+          <label v-else for="imagen" class="caja-subir">
+            <span class="caja-subir-titulo">Elegir imagen o banner</span>
+            <span class="caja-subir-sub">JPG, PNG o WEBP, hasta 5 MB. Se ve mejor horizontal (16:9)</span>
+          </label>
+        </div>
+
         <!-- Contenido / Descripción -->
         <div class="form-group">
           <label for="contenido">Contenido del Aviso *</label>
@@ -132,10 +146,37 @@
           ></textarea>
         </div>
 
+        <!-- Adjuntos (opcional) -->
+        <div class="form-group">
+          <label for="adjuntos">Archivos adjuntos <span class="opcional">(opcional, máximo {{ MAX_ADJUNTOS }})</span></label>
+          <ul v-if="adjuntos.length" class="lista-adjuntos">
+            <li v-for="(archivo, i) in adjuntos" :key="archivo.name + i">
+              <span class="adjunto-ext">{{ extensionDe(archivo.name) }}</span>
+              <span class="adjunto-nombre">{{ archivo.name }}</span>
+              <span class="adjunto-tamano">{{ formatearTamano(archivo.size) }}</span>
+              <button type="button" class="link-btn" @click="adjuntos.splice(i, 1)">Quitar</button>
+            </li>
+          </ul>
+          <input id="adjuntos" type="file" multiple class="archivo-oculto" :accept="REGLAS_ARCHIVOS.adjunto.accept" @change="elegirAdjuntos" />
+          <label v-if="adjuntos.length < MAX_ADJUNTOS" for="adjuntos" class="caja-subir chica">
+            <span class="caja-subir-titulo">+ Agregar archivos</span>
+            <span class="caja-subir-sub">PDF, Word, Excel, PowerPoint o imágenes, hasta 10 MB cada uno</span>
+          </label>
+        </div>
+
+        <p v-if="avisoArchivos" class="aviso-archivos" role="status">{{ avisoArchivos }}</p>
         <p v-if="errorMsg" class="error-text" role="alert">{{ errorMsg }}</p>
+        <p v-if="progreso" class="nota" aria-live="polite">{{ progreso }}</p>
 
         <!-- Botones de Acción -->
-        <div class="form-actions">
+        <!-- Si un archivo falló, el aviso ya existe: no se vuelve a publicar -->
+        <div v-if="avisoPublicado" class="form-actions">
+          <button type="button" class="submit-btn" @click="irDespuesDePublicar(avisoPublicado, nuevoAviso.destino)">
+            Ver el aviso publicado
+          </button>
+        </div>
+
+        <div v-else class="form-actions">
           <button type="button" class="cancel-btn" @click="$router.back()">Cancelar</button>
           <button type="submit" class="submit-btn" :disabled="isSubmitting">
             {{ isSubmitting ? 'Publicando...' : 'Publicar Aviso' }}
@@ -153,12 +194,16 @@
 <script setup>
 // Pantalla Crear Aviso (solo con permiso 'publicar_avisos'; la sesión la revisa el router)
 // Destino: toda la empresa, un departamento o una persona (server/routes/anuncios.js).
-// "Destacar" lo manda al carrusel de inicio (migración 014). La imagen y los adjuntos
-// quedan para después, cuando se defina dónde se guardan los archivos.
-import { ref, computed, onMounted } from 'vue';
+// "Destacar" lo manda al carrusel de inicio (migración 014).
+// Imagen y adjuntos (migración 016): primero se publica el aviso y después se suben los
+// archivos uno por uno a /api/anuncios/:id/imagen y /adjuntos (utils/archivos.js).
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { apiFetch } from '../api';
 import { usuarioTienePermiso } from '../utils/estadisticas';
+import {
+  REGLAS_ARCHIVOS, MAX_ADJUNTOS, revisarArchivo, subirArchivo, extensionDe, formatearTamano
+} from '../utils/archivos';
 import AppHeader from '../components/AppHeader.vue';
 import SidebarMenu from '../components/SidebarMenu.vue';
 import NotificationsDrawer from '../components/NotificationsDrawer.vue';
@@ -185,6 +230,48 @@ const nuevoAviso = ref({
   esDestacado: false,
   contenido: ''
 });
+
+// ── Imagen y adjuntos ────────────────────────────────────────────────
+const imagen = ref(null);
+const imagenVista = ref(null);
+const adjuntos = ref([]);
+const avisoArchivos = ref(''); // archivos que no se aceptaron al elegirlos
+const progreso = ref('');
+
+const elegirImagen = (e) => {
+  avisoArchivos.value = '';
+  const archivo = e.target.files[0];
+  e.target.value = ''; // permite volver a elegir el mismo archivo
+  if (!archivo) return;
+  const error = revisarArchivo(archivo, 'imagen');
+  if (error) {
+    avisoArchivos.value = error;
+    return;
+  }
+  quitarImagen();
+  imagen.value = archivo;
+  imagenVista.value = URL.createObjectURL(archivo);
+};
+
+const quitarImagen = () => {
+  if (imagenVista.value) URL.revokeObjectURL(imagenVista.value);
+  imagen.value = null;
+  imagenVista.value = null;
+};
+
+const elegirAdjuntos = (e) => {
+  const errores = [];
+  for (const archivo of e.target.files) {
+    const error = revisarArchivo(archivo, 'adjunto');
+    if (error) errores.push(error);
+    else if (adjuntos.value.length >= MAX_ADJUNTOS) errores.push(`"${archivo.name}": máximo ${MAX_ADJUNTOS} adjuntos`);
+    else adjuntos.value.push(archivo);
+  }
+  e.target.value = '';
+  avisoArchivos.value = errores.join(' · ');
+};
+
+onUnmounted(quitarImagen);
 
 // Catálogos para el destino
 const departamentos = ref([]);
@@ -263,20 +350,49 @@ const publicarAviso = async () => {
       return;
     }
 
-    // A dónde ir después de publicar:
-    //   - Para toda la empresa: abrir el aviso, para ver cómo quedó.
-    //   - Dirigido: el autor no lo ve en su lista (regla de visibilidad de routes/anuncios.js),
-    //     así que se abren sus estadísticas, que además confirman a quién le llegó.
+    // Subir la imagen y los adjuntos. Si alguno falla, el aviso ya quedó publicado:
+    // se avisa cuál falló y no se cambia de pantalla, para que TyC lo sepa.
     const id = data.anuncio.id_anu;
-    if (destino === 'general') router.push(`/mis-avisos/${id}`);
-    else if (usuarioTienePermiso('ver_estadisticas')) router.push(`/estadisticas/${id}`);
-    else router.push('/mis-avisos');
+    const fallidos = [];
+    const archivos = [
+      ...(imagen.value ? [{ ruta: `/api/anuncios/${id}/imagen`, archivo: imagen.value }] : []),
+      ...adjuntos.value.map((archivo) => ({ ruta: `/api/anuncios/${id}/adjuntos`, archivo }))
+    ];
+    for (const [i, { ruta, archivo }] of archivos.entries()) {
+      progreso.value = `Subiendo archivos (${i + 1} de ${archivos.length})...`;
+      try {
+        await subirArchivo(ruta, archivo);
+      } catch (error) {
+        fallidos.push(`${archivo.name}: ${error.message}`);
+      }
+    }
+    progreso.value = '';
+    if (fallidos.length) {
+      errorMsg.value = `El aviso se publicó, pero no se pudieron subir estos archivos: ${fallidos.join(' · ')}`;
+      avisoPublicado.value = id;
+      return;
+    }
+
+    irDespuesDePublicar(id, destino);
   } catch (error) {
     console.error('Error al publicar el aviso:', error);
     errorMsg.value = 'No se pudo conectar con el servidor';
   } finally {
     isSubmitting.value = false;
   }
+};
+
+// Si un archivo falló, el aviso ya existe: este botón lleva a él sin volver a publicar
+const avisoPublicado = ref(null);
+
+// A dónde ir después de publicar
+//   - Para toda la empresa: abrir el aviso, para ver cómo quedó.
+//   - Dirigido: el autor no lo ve en su lista (regla de visibilidad de routes/anuncios.js),
+//     así que se abren sus estadísticas, que además confirman a quién le llegó.
+const irDespuesDePublicar = (id, destino) => {
+  if (destino === 'general') router.push(`/mis-avisos/${id}`);
+  else if (usuarioTienePermiso('ver_estadisticas')) router.push(`/estadisticas/${id}`);
+  else router.push('/mis-avisos');
 };
 
 onMounted(cargarCatalogos);
@@ -591,6 +707,134 @@ textarea:focus {
   font-size: 0.85rem;
   font-weight: 600;
   margin: 0;
+}
+
+/* Imagen y adjuntos */
+.opcional {
+  font-weight: 400;
+  color: var(--text-secondary, #64748b);
+}
+
+.archivo-oculto {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+.caja-subir {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.2rem;
+  min-height: 110px;
+  padding: 1rem;
+  border: 2px dashed var(--border-color, #cbd5e1);
+  border-radius: 12px;
+  background: var(--bg-primary, #f8fafc);
+  cursor: pointer;
+  text-align: center;
+}
+
+.caja-subir.chica {
+  min-height: 70px;
+}
+
+.caja-subir:hover,
+.archivo-oculto:focus-visible + .caja-subir {
+  border-color: var(--brand-primary, #000080);
+  background: var(--tint-brand-bg, #e0e7ff);
+}
+
+.caja-subir-titulo {
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.caja-subir-sub {
+  font-size: 0.75rem;
+  color: var(--text-secondary, #64748b);
+}
+
+.imagen-vista {
+  position: relative;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid var(--border-color, #e2e8f0);
+}
+
+.imagen-vista img {
+  display: block;
+  width: 100%;
+  max-height: 260px;
+  object-fit: cover;
+}
+
+.quitar-btn {
+  position: absolute;
+  top: 0.6rem;
+  right: 0.6rem;
+  background: rgba(15, 23, 42, 0.8);
+  color: #ffffff;
+  border: none;
+  padding: 0.35rem 0.75rem;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.lista-adjuntos {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.lista-adjuntos li {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.55rem 0.75rem;
+  border: 1px solid var(--border-color, #e2e8f0);
+  border-radius: 8px;
+  font-size: 0.85rem;
+}
+
+.adjunto-ext {
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 0.15rem 0.4rem;
+  border-radius: 4px;
+  background: var(--tint-brand-bg, #e0e7ff);
+  color: var(--brand-primary, #000080);
+}
+
+.adjunto-nombre {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.adjunto-tamano {
+  font-size: 0.75rem;
+  color: var(--text-secondary, #64748b);
+  white-space: nowrap;
+}
+
+.aviso-archivos {
+  margin: 0;
+  font-size: 0.8rem;
+  padding: 0.6rem 0.8rem;
+  border-radius: 8px;
+  background: var(--tint-red-bg, #fef2f2);
+  color: var(--color-danger, #dc2626);
 }
 
 /* Acciones */

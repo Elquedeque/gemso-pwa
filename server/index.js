@@ -47,6 +47,18 @@ app.use('/api/push', pushRoutes);
 app.use('/api/invitaciones', invitacionesRoutes);
 app.use('/api/colaboradores', colaboradoresRoutes);
 
+// Errores al leer el cuerpo de la petición (por ejemplo, un archivo más grande que el límite
+// de express.raw): se responde en JSON y no con la página de error de Express
+app.use('/api', (err, req, res, next) => {
+  if (err.type === 'entity.too.large') {
+    return res.status(413).json({ error: 'El archivo es demasiado grande' });
+  }
+  if (err.status === 400 && err.type) {
+    return res.status(400).json({ error: 'La petición no se pudo leer' });
+  }
+  next(err);
+});
+
 // Una ruta de /api que no existe responde con JSON, no con la página de la app
 app.use('/api', (req, res) => {
   res.status(404).json({ error: 'Ruta de la API no encontrada' });

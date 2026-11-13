@@ -7,8 +7,14 @@
 //   POST /api/anuncios            Publicar un aviso (solo con permiso publicar_avisos) y mandar push
 //   POST /api/anuncios/:id/leido  Confirmar lectura
 //   PUT  /api/anuncios/:id/destacado  Destacar o quitar del carrusel (solo con permiso publicar_avisos)
+//   POST /api/anuncios/:id/imagen     Subir o reemplazar la imagen (publicar_avisos)
+//   GET  /api/anuncios/:id/imagen     Ver la imagen
+//   POST /api/anuncios/:id/adjuntos   Subir un adjunto (publicar_avisos, máximo 5)
+//   GET  /api/anuncios/:id/adjuntos/:idAdj  Ver o descargar (?descargar=1) un adjunto
+const path = require('path');
 const express = require('express');
 const db = require('../config/db');
+const almacenamiento = require('../services/almacenamiento');
 const autenticar = require('../middleware/autenticar');
 const requierePermiso = require('../middleware/requierePermiso');
 const { PERMISO_PUBLICAR_AVISOS, tienePermiso } = require('../services/permisos');
@@ -72,6 +78,7 @@ router.get('/', autenticar, async (req, res) => {
         a.categoria,
         a.urgente,
         a.destacado,
+        a.imagen IS NOT NULL AS tiene_imagen,
         a.fecha_creacion,
         a.id_dep_destino,
         a.id_usu_destino,
@@ -195,6 +202,7 @@ router.get('/:id', autenticar, async (req, res) => {
         a.categoria,
         a.urgente,
         a.destacado,
+        a.imagen IS NOT NULL AS tiene_imagen,
         a.fecha_creacion,
         a.id_dep_destino,
         a.id_usu_destino,
@@ -216,7 +224,7 @@ router.get('/:id', autenticar, async (req, res) => {
     await registrarVista(idUsu, idAnu);
 
     const adjuntos = await db.query(
-      `SELECT id_anu_adj, nombre_archivo, tipo_archivo, url_archivo
+      `SELECT id_anu_adj, nombre_archivo, tipo_archivo, tamano_bytes
        FROM anuncios_adj
        WHERE id_anu = $1
        ORDER BY id_anu_adj`,
@@ -319,6 +327,146 @@ router.post('/', autenticar, async (req, res) => {
     }
     console.error('Error al publicar anuncio:', error);
     res.status(500).json({ error: 'Error interno del servidor al publicar el anuncio' });
+  }
+});
+
+// ── Imagen y adjuntos (migración 016, services/almacenamiento.js) ─────
+// Subir: el cuerpo de la petición es el archivo tal cual (Content-Type: application/octet-stream)
+// y el nombre original va en el encabezado X-Nombre-Archivo (con encodeURIComponent, por los
+// acentos). Así no hace falta un paquete extra para formularios multipart.
+// Descargar: Express revisa que el usuario pueda ver el aviso y entrega el archivo; no hay
+// enlaces públicos.
+const MAX_ADJUNTOS = 5;
+const recibirArchivo = (tipo) =>
+  express.raw({ type: () => true, limit: almacenamiento.REGLAS[tipo].maxBytes });
+
+// Nombre original del archivo, sin rutas y con un largo razonable
+const nombreDelArchivo = (req) => {
+  let nombre = '';
+  try {
+    nombre = decodeURIComponent(req.get('X-Nombre-Archivo') || '');
+  } catch {
+    nombre = '';
+  }
+  return path.basename(nombre).trim().slice(0, 200);
+};
+
+// Aviso que el usuario puede ver, o cualquiera si tiene permiso de publicar
+// (TyC administra también los dirigidos a otros departamentos). null si no.
+const avisoAccesible = async (usuario, idAnu) => {
+  const visible = await db.query(
+    `SELECT a.id_anu, a.imagen FROM anuncios a WHERE a.id_anu = $3 AND ${FILTRO_VISIBLES}`,
+    [usuario.id_usu, usuario.id_departamento, idAnu]
+  );
+  if (visible.rows[0]) return visible.rows[0];
+  if (!(await tienePermiso(usuario.id_usu, PERMISO_PUBLICAR_AVISOS))) return null;
+  return (await db.query('SELECT id_anu, imagen FROM anuncios WHERE id_anu = $1', [idAnu])).rows[0] || null;
+};
+
+// Entregar un archivo del almacenamiento
+const enviarArchivo = async (res, clave, nombreDescarga, descargar) => {
+  if (!(await almacenamiento.existe(clave))) {
+    return res.status(404).json({ error: 'El archivo no está disponible en este momento' });
+  }
+  res.type(almacenamiento.mimeDe(clave));
+  // no-cache: el navegador puede guardarlo, pero pregunta cada vez si cambió (ETag de sendFile).
+  // Con max-age, al reemplazar la imagen de un aviso se seguía viendo la anterior, porque la
+  // dirección (/api/anuncios/:id/imagen) es la misma. Si no cambió, responde 304 sin reenviarla.
+  res.set('Cache-Control', 'private, no-cache');
+  if (nombreDescarga) {
+    res.attachment(nombreDescarga); // pone el nombre original al descargar
+    if (!descargar) res.set('Content-Disposition', res.get('Content-Disposition').replace('attachment', 'inline'));
+  }
+  res.sendFile(almacenamiento.rutaDe(clave));
+};
+
+const idDe = (valor) => {
+  const n = Number(valor);
+  return Number.isInteger(n) && n > 0 ? n : null;
+};
+
+// Subir o reemplazar la imagen del aviso
+router.post('/:id/imagen', autenticar, requierePermiso(PERMISO_PUBLICAR_AVISOS), recibirArchivo('imagen'), async (req, res) => {
+  const idAnu = idDe(req.params.id);
+  if (!idAnu) return res.status(400).json({ error: 'Aviso inválido' });
+  try {
+    const actual = await db.query('SELECT imagen FROM anuncios WHERE id_anu = $1', [idAnu]);
+    if (actual.rows.length === 0) return res.status(404).json({ error: 'Aviso no encontrado' });
+
+    const ext = almacenamiento.validar(req.body, nombreDelArchivo(req), 'imagen');
+    const clave = await almacenamiento.guardar(req.body, `avisos/${idAnu}`, ext);
+    await db.query('UPDATE anuncios SET imagen = $1 WHERE id_anu = $2', [clave, idAnu]);
+    await almacenamiento.borrar(actual.rows[0].imagen); // la anterior, si había
+    res.status(201).json({ message: 'Imagen guardada', id_anu: idAnu, tiene_imagen: true });
+  } catch (error) {
+    if (error instanceof almacenamiento.ErrorArchivo) return res.status(400).json({ error: error.message });
+    console.error('Error al guardar la imagen:', error);
+    res.status(500).json({ error: 'No se pudo guardar la imagen' });
+  }
+});
+
+// Ver la imagen del aviso
+router.get('/:id/imagen', autenticar, async (req, res) => {
+  const idAnu = idDe(req.params.id);
+  if (!idAnu) return res.status(400).json({ error: 'Aviso inválido' });
+  try {
+    const aviso = await avisoAccesible(req.usuario, idAnu);
+    if (!aviso || !aviso.imagen) return res.status(404).json({ error: 'Imagen no encontrada' });
+    await enviarArchivo(res, aviso.imagen);
+  } catch (error) {
+    console.error('Error al entregar la imagen:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// Subir un adjunto (máximo MAX_ADJUNTOS por aviso)
+router.post('/:id/adjuntos', autenticar, requierePermiso(PERMISO_PUBLICAR_AVISOS), recibirArchivo('adjunto'), async (req, res) => {
+  const idAnu = idDe(req.params.id);
+  if (!idAnu) return res.status(400).json({ error: 'Aviso inválido' });
+  const nombre = nombreDelArchivo(req);
+  try {
+    const conteo = await db.query(
+      `SELECT (SELECT COUNT(*) FROM anuncios WHERE id_anu = $1)::int AS existe,
+              (SELECT COUNT(*) FROM anuncios_adj WHERE id_anu = $1)::int AS adjuntos`,
+      [idAnu]
+    );
+    if (!conteo.rows[0].existe) return res.status(404).json({ error: 'Aviso no encontrado' });
+    if (conteo.rows[0].adjuntos >= MAX_ADJUNTOS) {
+      return res.status(400).json({ error: `Un aviso puede tener máximo ${MAX_ADJUNTOS} adjuntos` });
+    }
+
+    const ext = almacenamiento.validar(req.body, nombre, 'adjunto');
+    const clave = await almacenamiento.guardar(req.body, `avisos/${idAnu}`, ext);
+    const result = await db.query(
+      `INSERT INTO anuncios_adj (id_anu, nombre_archivo, tipo_archivo, url_archivo, tamano_bytes)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING id_anu_adj, nombre_archivo, tipo_archivo, tamano_bytes`,
+      [idAnu, nombre, ext, clave, req.body.length]
+    );
+    res.status(201).json({ message: 'Adjunto guardado', adjunto: result.rows[0] });
+  } catch (error) {
+    if (error instanceof almacenamiento.ErrorArchivo) return res.status(400).json({ error: error.message });
+    console.error('Error al guardar el adjunto:', error);
+    res.status(500).json({ error: 'No se pudo guardar el adjunto' });
+  }
+});
+
+// Descargar (?descargar=1) o ver en el navegador un adjunto
+router.get('/:id/adjuntos/:idAdj', autenticar, async (req, res) => {
+  const idAnu = idDe(req.params.id);
+  const idAdj = idDe(req.params.idAdj);
+  if (!idAnu || !idAdj) return res.status(400).json({ error: 'Adjunto inválido' });
+  try {
+    if (!(await avisoAccesible(req.usuario, idAnu))) return res.status(404).json({ error: 'Adjunto no encontrado' });
+    const adj = await db.query(
+      'SELECT nombre_archivo, url_archivo FROM anuncios_adj WHERE id_anu_adj = $1 AND id_anu = $2',
+      [idAdj, idAnu]
+    );
+    if (adj.rows.length === 0) return res.status(404).json({ error: 'Adjunto no encontrado' });
+    await enviarArchivo(res, adj.rows[0].url_archivo, adj.rows[0].nombre_archivo, req.query.descargar === '1');
+  } catch (error) {
+    console.error('Error al entregar el adjunto:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
   }
 });
 

@@ -42,6 +42,9 @@
         @cambio="aviso.destacado = $event"
       />
 
+      <!-- Imagen del aviso (si tiene) -->
+      <img v-if="imagenUrl" :src="imagenUrl" :alt="`Imagen del aviso: ${aviso.titulo}`" class="aviso-imagen" />
+
       <!-- Cuerpo del Aviso -->
       <article class="aviso-content">
         <p v-for="(paragraph, index) in aviso.contenido" :key="index">
@@ -67,22 +70,29 @@
               <path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z" fill="currentColor"/>
             </svg>
             <!-- Icono Imagen (PNG/JPG) -->
-            <svg v-else class="file-svg image" viewBox="0 0 24 24">
+            <svg v-else-if="['jpg', 'jpeg', 'png'].includes(adjunto.tipo)" class="file-svg image" viewBox="0 0 24 24">
               <path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z" fill="currentColor"/>
+            </svg>
+            <!-- Icono de documento (Excel, PowerPoint) -->
+            <svg v-else class="file-svg word" viewBox="0 0 24 24">
+              <path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm-1 7V3.5L18.5 9H13z" fill="currentColor"/>
             </svg>
           </div>
 
-          <!-- Nombre del Archivo -->
-          <span class="file-name">{{ adjunto.nombre }}</span>
+          <!-- Nombre y tamaño del Archivo -->
+          <span class="file-name">
+            {{ adjunto.nombre }}
+            <span v-if="adjunto.tamano" class="file-size">{{ adjunto.tamano }}</span>
+          </span>
 
           <!-- Acciones del Archivo: Descargar y Ver -->
           <div class="file-actions">
-            <button class="action-btn" title="Descargar" @click="descargarAdjunto(adjunto)">
+            <button class="action-btn" :title="`Descargar ${adjunto.nombre}`" :aria-label="`Descargar ${adjunto.nombre}`" @click="descargarAdjunto(adjunto)">
               <svg viewBox="0 0 24 24" class="action-svg">
                 <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z" fill="currentColor"/>
               </svg>
             </button>
-            <button class="action-btn" title="Previsualizar" @click="verAdjunto(adjunto)">
+            <button v-if="sePuedeVer(adjunto)" class="action-btn" :title="`Ver ${adjunto.nombre}`" :aria-label="`Ver ${adjunto.nombre}`" @click="verAdjunto(adjunto)">
               <svg viewBox="0 0 24 24" class="action-svg">
                 <path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z" fill="currentColor"/>
               </svg>
@@ -90,6 +100,8 @@
           </div>
         </div>
       </section>
+
+      <p v-if="errorAdjunto" class="error-adjunto" role="alert">{{ errorAdjunto }}</p>
 
       <!-- Botón Inferior: Confirmar Lectura -->
       <footer class="action-footer">
@@ -120,7 +132,8 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, onUnmounted } from 'vue';
+import { urlDeArchivo, descargarArchivo, abrirArchivo, formatearTamano } from '../utils/archivos';
 import { useRoute, useRouter } from 'vue-router';
 import { apiFetch } from '../api';
 import { quitarDeCampana } from '../utils/campana';
@@ -158,6 +171,7 @@ const mapearAviso = (a) => ({
   titulo: a.titulo,
   urgente: a.urgente,
   destacado: a.destacado,
+  tieneImagen: a.tiene_imagen,
   origen: [
     a.autor,
     a.departamento_destino ? `Para: ${a.departamento_destino}` : null,
@@ -170,7 +184,7 @@ const mapearAviso = (a) => ({
     id: adj.id_anu_adj,
     nombre: adj.nombre_archivo,
     tipo: tipoDeArchivo(adj.nombre_archivo),
-    url: adj.url_archivo
+    tamano: formatearTamano(adj.tamano_bytes)
   }))
 });
 
@@ -185,6 +199,7 @@ const cargarAviso = async () => {
       return;
     }
     aviso.value = mapearAviso(data);
+    cargarImagen();
     // Abrirlo lo registra como visto: ya no va en la campana
     quitarDeCampana(data.id_anu);
   } catch (error) {
@@ -219,29 +234,44 @@ const confirmarLectura = async () => {
   }
 };
 
-// Solo se permiten URLs http(s) o relativas (evita enlaces "javascript:" guardados en la BD)
-const esUrlSegura = (url) => {
+// Adjuntos (migración 016): se piden al servidor con la sesión, que revisa que el usuario
+// pueda ver el aviso (utils/archivos.js). Los archivos están en la carpeta de OneDrive.
+const errorAdjunto = ref('');
+const rutaAdjunto = (adjunto) => `/api/anuncios/${aviso.value.id}/adjuntos/${adjunto.id}`;
+// El navegador solo sabe mostrar PDF e imágenes; Word, Excel y PowerPoint se descargan
+const sePuedeVer = (adjunto) => ['pdf', 'jpg', 'jpeg', 'png'].includes(adjunto.tipo);
+
+const descargarAdjunto = async (adjunto) => {
+  errorAdjunto.value = '';
   try {
-    return ['http:', 'https:'].includes(new URL(url, window.location.origin).protocol);
+    await descargarArchivo(`${rutaAdjunto(adjunto)}?descargar=1`, adjunto.nombre);
   } catch {
-    return false;
+    errorAdjunto.value = `No se pudo descargar "${adjunto.nombre}". Intenta de nuevo.`;
   }
 };
 
-// Los adjuntos dependen del storage que se defina; por ahora se abre la URL guardada
-// Preguntar en sistemas si hay servidor de archivos o si los subimos a la nube
-const descargarAdjunto = (adjunto) => {
-  if (!esUrlSegura(adjunto.url)) return alert('El archivo no tiene una ubicación válida');
-  const link = document.createElement('a');
-  link.href = adjunto.url;
-  link.download = adjunto.nombre;
-  link.click();
+const verAdjunto = async (adjunto) => {
+  errorAdjunto.value = '';
+  try {
+    await abrirArchivo(rutaAdjunto(adjunto));
+  } catch {
+    errorAdjunto.value = `No se pudo abrir "${adjunto.nombre}". Intenta de nuevo.`;
+  }
 };
 
-const verAdjunto = (adjunto) => {
-  if (!esUrlSegura(adjunto.url)) return alert('El archivo no tiene una ubicación válida');
-  window.open(adjunto.url, '_blank', 'noopener');
+// Imagen del aviso
+const imagenUrl = ref(null);
+const cargarImagen = async () => {
+  if (!aviso.value?.tieneImagen) return;
+  try {
+    imagenUrl.value = await urlDeArchivo(`/api/anuncios/${aviso.value.id}/imagen`);
+  } catch {
+    imagenUrl.value = null; // sin imagen el aviso se sigue leyendo bien
+  }
 };
+onUnmounted(() => {
+  if (imagenUrl.value) URL.revokeObjectURL(imagenUrl.value);
+});
 
 onMounted(() => {
   const sesion = localStorage.getItem('usuario');
@@ -343,6 +373,29 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
+}
+
+.aviso-imagen {
+  display: block;
+  width: 100%;
+  max-height: 420px;
+  object-fit: cover;
+  border-radius: 14px;
+  border: 1px solid var(--border-color, #e2e8f0);
+}
+
+.file-size {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 400;
+  color: var(--text-secondary, #64748b);
+}
+
+.error-adjunto {
+  margin: 0;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-danger, #dc2626);
 }
 
 .attachment-item {
