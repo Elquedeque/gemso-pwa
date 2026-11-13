@@ -63,13 +63,14 @@
 
 <script setup>
 import { ref } from 'vue';
-import { useRouter } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { API_URL } from '../api';
 
 // Importación de la imagen desde client/src/assets/icon_GEMSO.png
 import logoGemso from '../assets/icon_GEMSO.png';
 
 const router = useRouter();
+const route = useRoute();
 const correo = ref('');
 const contraseña = ref('');
 const cargando = ref(false);
@@ -99,8 +100,15 @@ const handleLogin = async () => {
     localStorage.setItem('usuario', JSON.stringify(data.usuario));
     localStorage.setItem('token', data.token);
 
-    // Redirigir al módulo de anuncios
-    router.push('/anuncios');
+    // Regresar a la pantalla que pidió el login (router.beforeEach la manda en ?volver=)
+    // o, si no hay, al módulo de anuncios. Solo se aceptan rutas internas
+    // ("/algo", no "//otro-sitio.com"), para que un enlace no lleve a otra página.
+    const volver = route.query.volver;
+    const destino =
+      typeof volver === 'string' && volver.startsWith('/') && !volver.startsWith('//')
+        ? volver
+        : '/anuncios';
+    router.push(destino);
   } catch (err) {
     errorMessage.value = err.message;
   } finally {

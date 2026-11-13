@@ -10,18 +10,31 @@ import ContactoView from '../views/ContactoView.vue';
 import CrearAvisoView from '../views/CrearAvisoView.vue';
 import RegistroView from '../views/RegistroView.vue';
 
-// Guardia para pantallas que piden un permiso (tabla usuario_permisos).
-// Esto es solo para la pantalla, el backend vuelve a revisar el permiso en cada petición.
-// Sin sesión manda al login; sin permiso, a Mis Avisos.
-const soloConPermiso = (permiso) => () => {
-  let usuario = null;
+// ── Protección de pantallas ──────────────────────────────────────────
+// Esto es solo para la pantalla: el backend vuelve a revisar la sesión y los
+// permisos en cada petición. Sirve para no mostrar pantallas vacías o con errores.
+//
+// Reglas (ver router.beforeEach al final):
+//   - Toda pantalla pide sesión, salvo las marcadas con meta: { publica: true }.
+//     Así, una pantalla nueva nace protegida aunque se olvide marcarla.
+//   - Las que piden un permiso (tabla usuario_permisos) usan soloConPermiso().
+
+// Usuario guardado por LoginView, o null si no hay sesión
+const leerSesion = () => {
+  if (!localStorage.getItem('token')) return null;
   try {
-    usuario = JSON.parse(localStorage.getItem('usuario'));
+    const usuario = JSON.parse(localStorage.getItem('usuario'));
+    return usuario?.id_usu ? usuario : null;
   } catch {
-    usuario = null;
+    return null;
   }
-  if (!usuario?.id_usu || !localStorage.getItem('token')) return '/login';
-  if (!usuario.permisos?.includes(permiso)) return '/mis-avisos';
+};
+
+// Guardia para pantallas que piden un permiso. La sesión ya la revisó beforeEach;
+// aquí solo se ve el permiso. Sin permiso, a Mis Avisos.
+const soloConPermiso = (permiso) => () => {
+  const usuario = leerSesion();
+  if (!usuario?.permisos?.includes(permiso)) return '/mis-avisos';
   return true;
 };
 
@@ -33,12 +46,14 @@ const routes = [
   {
     path: '/login',
     name: 'login',
-    component: LoginView
+    component: LoginView,
+    meta: { publica: true }
   },
   {
     path: '/registro',
     name: 'registro',
-    component: RegistroView
+    component: RegistroView,
+    meta: { publica: true }
   },
   {
     path: '/anuncios',
@@ -128,12 +143,27 @@ const routes = [
   }
 ];
 
-// PENDIENTE: solo /crear-aviso revisa la sesion. Hacer un router.beforeEach para que
-// perfil, avisos, documentos, etc. manden al login si no hay token.
-// (La API ya bloquea los datos, pero la pantalla se alcanza a ver vacia)
 const router = createRouter({
   history: createWebHistory(),
   routes
+});
+
+// Se ejecuta antes de abrir cualquier pantalla
+router.beforeEach((to) => {
+  const haySesion = leerSesion() !== null;
+
+  // Pantalla protegida sin sesión: al login, recordando a dónde quería ir
+  // (por ejemplo, al tocar una notificación que abre /estadisticas/5)
+  if (!to.meta.publica && !haySesion) {
+    return { path: '/login', query: { volver: to.fullPath } };
+  }
+
+  // Con sesión no tiene caso volver a iniciarla
+  if (to.name === 'login' && haySesion) {
+    return '/anuncios';
+  }
+
+  return true;
 });
 
 export default router;
