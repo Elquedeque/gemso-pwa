@@ -8,6 +8,7 @@
 // Cargar el .env primero, porque config/ usa sus variables
 require('dotenv').config();
 
+const path = require('path');
 const express = require('express');
 const cors = require('cors');
 require('./config/auth'); // Si falta JWT_SECRET en el .env, el servidor no arranca
@@ -43,6 +44,39 @@ app.use('/api/empresas', empresasRoutes);
 app.use('/api/estadisticas', estadisticasRoutes);
 app.use('/api/push', pushRoutes);
 app.use('/api/invitaciones', invitacionesRoutes);
+
+// Una ruta de /api que no existe responde con JSON, no con la página de la app
+app.use('/api', (req, res) => {
+  res.status(404).json({ error: 'Ruta de la API no encontrada' });
+});
+
+// ── Frontend: la app de Vue ya compilada (client/dist) ────────────────
+// Se genera con "npm run build" dentro de client/. Así la app y la API salen
+// del mismo servidor y la misma dirección, como lo pide la PWA en producción.
+const CARPETA_DIST = path.join(__dirname, '..', 'client', 'dist');
+
+app.use(express.static(CARPETA_DIST, {
+  setHeaders(res, archivo) {
+    const nombre = path.basename(archivo);
+    if (nombre === 'index.html' || nombre === 'sw.js' || nombre.endsWith('.webmanifest')) {
+      // Siempre se revisa si hay versión nueva (si no, los usuarios se quedan con la vieja)
+      res.setHeader('Cache-Control', 'no-cache');
+    } else if (archivo.includes(`${path.sep}assets${path.sep}`)) {
+      // Los archivos de assets/ llevan un hash en el nombre: si cambian, cambia el nombre
+      res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+    }
+  }
+}));
+
+// Fallback para Vue Router: si alguien entra directo a /estadisticas o recarga
+// la página, se entrega index.html y Vue Router decide qué pantalla mostrar.
+app.use((req, res, next) => {
+  if (req.method !== 'GET' && req.method !== 'HEAD') return next();
+  res.setHeader('Cache-Control', 'no-cache');
+  res.sendFile(path.join(CARPETA_DIST, 'index.html'), (err) => {
+    if (err) res.status(404).send('Falta compilar el frontend: ejecuta "npm run build" en client/');
+  });
+});
 
 // Agregamos '0.0.0.0' para que escuche a cualquier dispositivo de tu red
 app.listen(PORT, '0.0.0.0', () => {
