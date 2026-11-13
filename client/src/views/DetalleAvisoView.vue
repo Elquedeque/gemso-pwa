@@ -34,6 +34,14 @@
         <p class="aviso-origen">{{ aviso.origen }}</p>
       </header>
 
+      <!-- Solo para quien publica avisos (en la beta, Talento y Cultura) -->
+      <BotonDestacado
+        v-if="puedePublicar"
+        :id-anu="aviso.id"
+        :destacado="aviso.destacado"
+        @cambio="aviso.destacado = $event"
+      />
+
       <!-- Cuerpo del Aviso -->
       <article class="aviso-content">
         <p v-for="(paragraph, index) in aviso.contenido" :key="index">
@@ -116,6 +124,11 @@ import { ref, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { apiFetch } from '../api';
 import { quitarDeCampana } from '../utils/campana';
+import { usuarioTienePermiso } from '../utils/estadisticas';
+import BotonDestacado from '../components/BotonDestacado.vue';
+
+// Quien publica avisos puede destacar o quitar este aviso del carrusel
+const puedePublicar = usuarioTienePermiso('publicar_avisos');
 import AppHeader from '../components/AppHeader.vue';
 import SidebarMenu from '../components/SidebarMenu.vue';
 import NotificationsDrawer from '../components/NotificationsDrawer.vue';
@@ -144,6 +157,7 @@ const mapearAviso = (a) => ({
   id: a.id_anu,
   titulo: a.titulo,
   urgente: a.urgente,
+  destacado: a.destacado,
   origen: [
     a.autor,
     a.departamento_destino ? `Para: ${a.departamento_destino}` : null,

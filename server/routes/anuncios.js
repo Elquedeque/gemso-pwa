@@ -6,6 +6,7 @@
 //   GET  /api/anuncios/:id       Detalle de un aviso con sus adjuntos (y registra que lo vio)
 //   POST /api/anuncios            Publicar un aviso (solo con permiso publicar_avisos) y mandar push
 //   POST /api/anuncios/:id/leido  Confirmar lectura
+//   PUT  /api/anuncios/:id/destacado  Destacar o quitar del carrusel (solo con permiso publicar_avisos)
 const express = require('express');
 const db = require('../config/db');
 const autenticar = require('../middleware/autenticar');
@@ -318,6 +319,38 @@ router.post('/', autenticar, async (req, res) => {
     }
     console.error('Error al publicar anuncio:', error);
     res.status(500).json({ error: 'Error interno del servidor al publicar el anuncio' });
+  }
+});
+
+// Destacar o quitar del carrusel un aviso ya publicado: { "destacado": false }
+// Lo puede hacer cualquiera con permiso publicar_avisos (en la beta, el equipo de TyC), no solo
+// el autor: el carrusel es de todo el equipo. No revisa la regla de visibilidad, porque TyC
+// también administra los avisos dirigidos a otros departamentos.
+router.put('/:id/destacado', autenticar, requierePermiso(PERMISO_PUBLICAR_AVISOS), async (req, res) => {
+  const idAnu = Number(req.params.id);
+  const destacado = req.body?.destacado;
+  if (!Number.isInteger(idAnu) || idAnu <= 0) {
+    return res.status(400).json({ error: 'Aviso inválido' });
+  }
+  if (typeof destacado !== 'boolean') {
+    return res.status(400).json({ error: 'El campo destacado debe ser verdadero o falso' });
+  }
+
+  try {
+    const result = await db.query(
+      'UPDATE anuncios SET destacado = $1 WHERE id_anu = $2 RETURNING id_anu, destacado',
+      [destacado, idAnu]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Aviso no encontrado' });
+    }
+    res.json({
+      message: destacado ? 'El aviso ya aparece en el carrusel' : 'El aviso ya no aparece en el carrusel',
+      ...result.rows[0]
+    });
+  } catch (error) {
+    console.error('Error al cambiar destacado:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
   }
 });
 

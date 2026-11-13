@@ -32,6 +32,15 @@
           </p>
         </header>
 
+        <!-- Aquí también se pueden quitar los destacados dirigidos a otros departamentos,
+             que el autor no ve en Mis Avisos -->
+        <BotonDestacado
+          v-if="puedePublicar"
+          :id-anu="detalle.id_anu"
+          :destacado="detalle.destacado"
+          @cambio="detalle.destacado = $event"
+        />
+
         <!-- Filtro por departamento (solo si el aviso llegó a más de uno) -->
         <section v-if="detalle.por_departamento.length > 1" class="filtros">
           <label class="campo">
@@ -149,7 +158,11 @@
 import { ref, computed, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { apiFetch } from '../api';
-import { porcentaje, ESTADOS, formatearFecha, formatearFechaHora, META_POR_DEFECTO } from '../utils/estadisticas';
+import { porcentaje, ESTADOS, formatearFecha, formatearFechaHora, META_POR_DEFECTO, usuarioTienePermiso } from '../utils/estadisticas';
+import BotonDestacado from '../components/BotonDestacado.vue';
+
+// Ver estadísticas no basta para destacar: hace falta el permiso de publicar
+const puedePublicar = usuarioTienePermiso('publicar_avisos');
 import AppHeader from '../components/AppHeader.vue';
 import SidebarMenu from '../components/SidebarMenu.vue';
 import NotificationsDrawer from '../components/NotificationsDrawer.vue';

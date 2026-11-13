@@ -62,6 +62,7 @@ const CONSULTA_RESUMEN = `
     a.titulo,
     a.categoria,
     a.urgente,
+    a.destacado,
     a.fecha_creacion,
     au.nombre_completo AS autor,
     CASE
