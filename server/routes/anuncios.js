@@ -1,11 +1,13 @@
 // Rutas de Avisos / Comunicados (todas piden sesión iniciada)
-//   GET  /api/anuncios            Lista de avisos que el usuario puede ver (?limite=N opcional)
-//   GET  /api/anuncios/:id        Detalle de un aviso con sus adjuntos (y registra que lo vio)
+//   GET  /api/anuncios            Lista de avisos que el usuario puede ver (?limite=N y ?destacados=1 opcionales)
+//   GET  /api/anuncios/destinatarios  Personas a las que se puede dirigir un aviso (solo con permiso publicar_avisos)
+//   GET  /api/anuncios/:id       Detalle de un aviso con sus adjuntos (y registra que lo vio)
 //   POST /api/anuncios            Publicar un aviso (solo con permiso publicar_avisos) y mandar push
 //   POST /api/anuncios/:id/leido  Confirmar lectura
 const express = require('express');
 const db = require('../config/db');
 const autenticar = require('../middleware/autenticar');
+const requierePermiso = require('../middleware/requierePermiso');
 const { PERMISO_PUBLICAR_AVISOS, tienePermiso } = require('../services/permisos');
 const { notificarNuevoAviso } = require('../services/notificaciones');
 
@@ -44,6 +46,7 @@ const registrarVista = (idUsu, idAnu) =>
   );
 
 // Endpoint para obtener los anuncios que le tocan al usuario
+// Con ?destacados=1 solo regresa los destacados (carrusel de la pantalla de inicio, migración 014)
 router.get('/', autenticar, async (req, res) => {
   const { id_usu: idUsu, id_departamento } = req.usuario;
 
@@ -55,6 +58,7 @@ router.get('/', autenticar, async (req, res) => {
       return res.status(400).json({ error: 'El límite debe ser un número entre 1 y 50' });
     }
   }
+  const soloDestacados = req.query.destacados === '1';
 
   try {
     const query = `
@@ -64,6 +68,7 @@ router.get('/', autenticar, async (req, res) => {
         a.contenido,
         a.categoria,
         a.urgente,
+        a.destacado,
         a.fecha_creacion,
         a.id_dep_destino,
         a.id_usu_destino,
@@ -75,14 +80,34 @@ router.get('/', autenticar, async (req, res) => {
       INNER JOIN usuarios u ON a.id_autor = u.id_usu
       LEFT JOIN departamentos d ON a.id_dep_destino = d.id_dep
       WHERE ${FILTRO_VISIBLES}
+        AND (NOT $4 OR a.destacado)
       ORDER BY a.fecha_creacion DESC
       LIMIT $3;
     `;
     // Si limite es null, PostgreSQL lo toma como "sin límite"
-    const result = await db.query(query, [idUsu, id_departamento, limite]);
+    const result = await db.query(query, [idUsu, id_departamento, limite, soloDestacados]);
     res.json(result.rows);
   } catch (error) {
     console.error('Error al obtener anuncios:', error);
+    res.status(500).json({ error: 'Error al consultar la base de datos' });
+  }
+});
+
+// Personas a las que se puede dirigir un aviso (destino "Una persona" en CrearAvisoView)
+// Solo colaboradores activos (migración 013). Va antes de '/:id' para que Express no
+// confunda "destinatarios" con un id.
+router.get('/destinatarios', autenticar, requierePermiso(PERMISO_PUBLICAR_AVISOS), async (req, res) => {
+  try {
+    const result = await db.query(
+      `SELECT u.id_usu, u.nombre_completo, d.nombre AS departamento
+       FROM usuarios u
+       LEFT JOIN departamentos d ON d.id_dep = u.id_departamento
+       WHERE u.activo
+       ORDER BY u.nombre_completo`
+    );
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error al obtener destinatarios:', error);
     res.status(500).json({ error: 'Error al consultar la base de datos' });
   }
 });
@@ -105,6 +130,7 @@ router.get('/:id', autenticar, async (req, res) => {
         a.contenido,
         a.categoria,
         a.urgente,
+        a.destacado,
         a.fecha_creacion,
         a.id_dep_destino,
         a.id_usu_destino,
@@ -144,8 +170,9 @@ router.get('/:id', autenticar, async (req, res) => {
 // El autor siempre es el usuario de la sesión, no se acepta id_autor desde el cliente.
 // Destino opcional: un departamento (id_dep_destino) o una persona (id_usu_destino).
 // Si no viene ninguno, el aviso es general. No se pueden mandar los dos.
+// destacado (opcional): el aviso también sale en el carrusel de inicio (migración 014).
 router.post('/', autenticar, async (req, res) => {
-  const { titulo, contenido, categoria, urgente } = req.body;
+  const { titulo, contenido, categoria, urgente, destacado } = req.body;
   const idAutor = req.usuario.id_usu;
   const idDepDestino = idOpcional(req.body.id_dep_destino);
   const idUsuDestino = idOpcional(req.body.id_usu_destino);
@@ -160,6 +187,9 @@ router.post('/', autenticar, async (req, res) => {
   if (urgente !== undefined && typeof urgente !== 'boolean') {
     return res.status(400).json({ error: 'El campo urgente debe ser verdadero o falso' });
   }
+  if (destacado !== undefined && typeof destacado !== 'boolean') {
+    return res.status(400).json({ error: 'El campo destacado debe ser verdadero o falso' });
+  }
   if (Number.isNaN(idDepDestino) || Number.isNaN(idUsuDestino)) {
     return res.status(400).json({ error: 'Departamento o usuario destino inválido' });
   }
@@ -173,17 +203,29 @@ router.post('/', autenticar, async (req, res) => {
       return res.status(403).json({ error: 'No tienes permiso para publicar avisos' });
     }
 
+    // La persona destino debe existir y estar activa: a un desactivado no le llegaría (migración 013)
+    if (idUsuDestino !== null) {
+      const destino = await db.query('SELECT activo FROM usuarios WHERE id_usu = $1', [idUsuDestino]);
+      if (destino.rows.length === 0) {
+        return res.status(400).json({ error: 'El usuario destino no existe' });
+      }
+      if (!destino.rows[0].activo) {
+        return res.status(400).json({ error: 'El usuario destino está desactivado' });
+      }
+    }
+
     // 2. Guardar el aviso en la BD
     const query = `
-      INSERT INTO anuncios (titulo, contenido, categoria, urgente, id_autor, id_dep_destino, id_usu_destino)
-      VALUES ($1, $2, $3, $4, $5, $6, $7)
-      RETURNING id_anu, titulo, contenido, categoria, urgente, id_autor, id_dep_destino, id_usu_destino, fecha_creacion;
+      INSERT INTO anuncios (titulo, contenido, categoria, urgente, destacado, id_autor, id_dep_destino, id_usu_destino)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      RETURNING id_anu, titulo, contenido, categoria, urgente, destacado, id_autor, id_dep_destino, id_usu_destino, fecha_creacion;
     `;
     const values = [
       titulo.trim(),
       contenido.trim(),
       categoria.trim(),
       urgente === true,
+      destacado === true,
       idAutor,
       idDepDestino,
       idUsuDestino

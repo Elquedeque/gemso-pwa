@@ -62,42 +62,49 @@
           <span class="badge-live">Oficial</span>
         </div>
 
-        <div 
+        <!-- Sin destacados todavía (o cargando / error) -->
+        <div v-if="!avisoActual" class="featured-card featured-vacio">
+          <p>{{ cargandoDestacados ? 'Cargando avisos destacados...' : (errorDestacados || 'Por ahora no hay avisos destacados.') }}</p>
+        </div>
+
+        <div
+          v-else
           class="featured-card"
+          :class="{ urgente: avisoActual.urgente }"
           @touchstart="onTouchStart"
           @touchend="onTouchEnd"
-          @click="navegarA('/mis-avisos')"
+          @click="navegarA(`/mis-avisos/${avisoActual.id}`)"
         >
+          <!-- Panel con el color de la marca (los avisos todavía no tienen imagen) -->
           <div class="card-image-wrapper">
-            <img 
-              :src="avisosDestacados[currentIndex].mediaUrl" 
-              :alt="avisosDestacados[currentIndex].titulo" 
-              class="featured-image"
-            />
-            
+            <div class="featured-panel">
+              <p class="featured-extracto">{{ avisoActual.extracto }}</p>
+            </div>
+
             <!-- Badge para Móvil / Desktop normal -->
             <span class="category-tag">
-              {{ avisosDestacados[currentIndex].categoria }}
+              {{ avisoActual.urgente ? 'Urgente · ' : '' }}{{ avisoActual.categoria }}
             </span>
 
             <!-- Capa Informativa para Modo TV -->
             <div class="tv-info-overlay">
               <div class="tv-badge-group">
-                <span class="tv-tag">{{ avisosDestacados[currentIndex].categoria }}</span>
-                <span class="tv-author-badge">{{ avisosDestacados[currentIndex].autor }}</span>
+                <span class="tv-tag">{{ avisoActual.categoria }}</span>
+                <span class="tv-author-badge">{{ avisoActual.autor }}</span>
               </div>
-              <h2 class="tv-title">{{ avisosDestacados[currentIndex].titulo }}</h2>
-              <p class="tv-date">Publicado: {{ avisosDestacados[currentIndex].fecha }}</p>
+              <h2 class="tv-title">{{ avisoActual.titulo }}</h2>
+              <p class="tv-contenido">{{ avisoActual.extractoTV }}</p>
+              <p class="tv-date">Publicado: {{ avisoActual.fecha }}</p>
             </div>
           </div>
 
           <!-- Contenido estándar para vista Móvil / Web -->
           <div class="card-content">
-            <h4 class="featured-title">{{ avisosDestacados[currentIndex].titulo }}</h4>
+            <h4 class="featured-title">{{ avisoActual.titulo }}</h4>
             <div class="meta-row">
-              <span class="meta-date">{{ avisosDestacados[currentIndex].fecha }}</span>
+              <span class="meta-date">{{ avisoActual.fecha }}</span>
               <span class="meta-dot">•</span>
-              <span class="meta-author">{{ avisosDestacados[currentIndex].autor }}</span>
+              <span class="meta-author">{{ avisoActual.autor }}</span>
             </div>
           </div>
         </div>
@@ -164,7 +171,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { apiFetch } from '../api';
 import AppHeader from '../components/AppHeader.vue';
@@ -184,22 +191,20 @@ const carouselSection = ref(null);
 let touchStartX = 0;
 let touchEndX = 0;
 
-const avisosDestacados = ref([
-  {
-    titulo: 'Hermosillo vivió fiesta de autos con Grupo Gemso',
-    categoria: 'Autofest 2026',
-    fecha: 'Hace 2 horas',
-    autor: 'Comunicación Corporativa',
-    mediaUrl: 'https://images.unsplash.com/photo-1552519507-da3b142c6e3d?auto=format&fit=crop&w=1200&q=80'
-  },
-  {
-    titulo: 'Nuevos Lineamientos de Comunicación Interna',
-    categoria: 'Corporativo',
-    fecha: 'Ayer',
-    autor: 'Talento y Cultura',
-    mediaUrl: 'https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?auto=format&fit=crop&w=1200&q=80'
-  }
-]);
+// Carrusel "Aviso Destacado": los avisos marcados como destacados (migración 014)
+// que el usuario puede ver, los más recientes primero
+const LIMITE_DESTACADOS = 5;
+const avisosDestacados = ref([]);
+const cargandoDestacados = ref(false);
+const errorDestacados = ref('');
+const avisoActual = computed(() => avisosDestacados.value[currentIndex.value] || null);
+
+// Recortar el contenido sin cortar palabras a la mitad
+const recortar = (texto, max) => {
+  const limpio = (texto || '').replace(/\s+/g, ' ').trim();
+  if (limpio.length <= max) return limpio;
+  return `${limpio.slice(0, limpio.lastIndexOf(' ', max) > 0 ? limpio.lastIndexOf(' ', max) : max)}…`;
+};
 
 // Comunicados Recientes (desde la BD, respetando la regla de visibilidad)
 const LIMITE_RECIENTES = 5;
@@ -252,6 +257,35 @@ const cargarRecientes = async () => {
     errorRecientes.value = 'No se pudo conectar con el servidor';
   } finally {
     cargandoRecientes.value = false;
+  }
+};
+
+const cargarDestacados = async () => {
+  cargandoDestacados.value = true;
+  errorDestacados.value = '';
+  try {
+    const res = await apiFetch(`/api/anuncios?destacados=1&limite=${LIMITE_DESTACADOS}`);
+    const data = await res.json();
+    if (!res.ok) {
+      errorDestacados.value = data.error || 'No se pudieron cargar los avisos destacados';
+      return;
+    }
+    avisosDestacados.value = data.map(a => ({
+      id: a.id_anu,
+      titulo: a.titulo,
+      categoria: a.categoria,
+      urgente: a.urgente,
+      autor: a.autor,
+      fecha: formatearFechaCorta(a.fecha_creacion),
+      extracto: recortar(a.contenido, 140),
+      extractoTV: recortar(a.contenido, 320)
+    }));
+    currentIndex.value = 0;
+  } catch (error) {
+    console.error('Error al cargar avisos destacados:', error);
+    errorDestacados.value = 'No se pudo conectar con el servidor';
+  } finally {
+    cargandoDestacados.value = false;
   }
 };
 
@@ -324,6 +358,7 @@ onMounted(() => {
 
   if (idUsuario) {
     cargarRecientes();
+    cargarDestacados();
   } else {
     errorRecientes.value = 'Inicia sesión para ver los comunicados';
   }
@@ -518,10 +553,48 @@ onUnmounted(() => {
   background-color: #000000;
 }
 
-.featured-image {
+/* Panel de color en lugar de imagen: azul de marca, rojo si es urgente */
+.featured-panel {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  padding: 3rem 1.75rem 1.5rem;
+  background: linear-gradient(135deg, #000080 0%, #2f4fd8 100%);
+  color: #ffffff;
+}
+
+.featured-card.urgente .featured-panel {
+  background: linear-gradient(135deg, #991b1b 0%, #dc2626 100%);
+}
+
+.featured-extracto {
+  margin: 0;
+  font-size: clamp(1rem, 3.2vw, 1.3rem);
+  font-weight: 500;
+  line-height: 1.45;
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.featured-vacio {
+  cursor: default;
+  aspect-ratio: 16 / 9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 1.5rem;
+  box-sizing: border-box;
+}
+
+.featured-vacio p {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--text-secondary, #64748b);
 }
 
 .category-tag {
@@ -721,8 +794,17 @@ onUnmounted(() => {
   aspect-ratio: auto;
 }
 
-.featured-section:fullscreen .featured-image {
-  object-fit: contain;
+/* En Modo TV el texto va en la capa de abajo; el panel solo da el color */
+.featured-section:fullscreen .featured-extracto {
+  display: none;
+}
+
+.featured-section:fullscreen .tv-contenido {
+  margin: 0;
+  font-size: 1.3rem;
+  line-height: 1.5;
+  color: #e2e8f0;
+  max-width: 70ch;
 }
 
 .featured-section:fullscreen .category-tag,

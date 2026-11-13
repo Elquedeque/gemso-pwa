@@ -47,60 +47,77 @@
           </div>
 
           <div class="form-group">
-            <label for="tipo">Prioridad / Tipo *</label>
-            <select id="tipo" v-model="nuevoAviso.tipo" required>
-              <option value="General">General</option>
+            <label for="prioridad">Prioridad *</label>
+            <select id="prioridad" v-model="nuevoAviso.prioridad" required>
+              <option value="Normal">Normal</option>
               <option value="Urgente">Urgente</option>
-              <option value="TyC">TyC</option>
             </select>
           </div>
         </div>
+
+        <!-- Destino: toda la empresa, un departamento o una persona -->
+        <fieldset class="form-group destino">
+          <legend>¿Para quién es? *</legend>
+          <div class="destino-opciones" role="radiogroup">
+            <label v-for="op in OPCIONES_DESTINO" :key="op.valor" class="destino-opcion" :class="{ activa: nuevoAviso.destino === op.valor }">
+              <input type="radio" name="destino" :value="op.valor" v-model="nuevoAviso.destino" />
+              <span class="destino-titulo">{{ op.titulo }}</span>
+              <span class="destino-sub">{{ op.sub }}</span>
+            </label>
+          </div>
+
+          <select
+            v-if="nuevoAviso.destino === 'departamento'"
+            v-model="nuevoAviso.id_dep_destino"
+            aria-label="Departamento destino"
+            required
+          >
+            <option value="" disabled>Selecciona el departamento</option>
+            <option v-for="dep in departamentos" :key="dep.id_dep" :value="dep.id_dep">{{ dep.nombre }}</option>
+          </select>
+
+          <!-- Persona: buscador, porque son más de 200 colaboradores -->
+          <div v-if="nuevoAviso.destino === 'persona'" class="persona-destino">
+            <div v-if="personaElegida" class="persona-elegida">
+              <span>
+                <strong>{{ personaElegida.nombre_completo }}</strong>
+                <span class="persona-dep"> · {{ personaElegida.departamento }}</span>
+              </span>
+              <button type="button" class="link-btn" @click="personaElegida = null">Cambiar</button>
+            </div>
+            <template v-else>
+              <input
+                v-model="buscarPersona"
+                type="search"
+                placeholder="Escribe el nombre de la persona"
+                aria-label="Buscar persona destino"
+              />
+              <ul v-if="buscarPersona.trim()" class="persona-resultados">
+                <li v-for="p in personasEncontradas" :key="p.id_usu">
+                  <button type="button" @click="elegirPersona(p)">
+                    {{ p.nombre_completo }} <span class="persona-dep">· {{ p.departamento }}</span>
+                  </button>
+                </li>
+                <li v-if="personasEncontradas.length === 0" class="persona-vacio">Nadie coincide con esa búsqueda.</li>
+              </ul>
+            </template>
+          </div>
+
+          <span class="nota">{{ resumenDestino }}</span>
+        </fieldset>
 
         <!-- Checkbox Destacado en Modo TV -->
         <div class="form-checkbox-card">
           <div class="checkbox-info">
             <label for="esDestacado">Destacar en Carrusel (Modo TV)</label>
-            <span>Aparecerá en la pantalla principal del portal y en la vista de TV corporativa.</span>
+            <span>Aparecerá en el carrusel de la pantalla de inicio y en el Modo TV de quienes lo pueden ver.</span>
           </div>
-          <input 
-            id="esDestacado" 
-            type="checkbox" 
-            v-model="nuevoAviso.esDestacado" 
-            class="toggle-switch" 
+          <input
+            id="esDestacado"
+            type="checkbox"
+            v-model="nuevoAviso.esDestacado"
+            class="toggle-switch"
           />
-        </div>
-
-        <!-- Carga de Imagen -->
-        <div class="form-group">
-          <label>Imagen del Aviso</label>
-          <div 
-            class="image-upload-box" 
-            :class="{ 'has-image': imagePreview }"
-            @click="triggerFileInput"
-          >
-            <input 
-              type="file" 
-              ref="fileInput" 
-              accept="image/*" 
-              class="hidden-file-input" 
-              @change="handleImageUpload" 
-            />
-
-            <template v-if="!imagePreview">
-              <svg viewBox="0 0 24 24" class="upload-icon">
-                <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" fill="currentColor"/>
-              </svg>
-              <span class="upload-text">Subir imagen o banner</span>
-              <span class="upload-sub">Formatos JPG, PNG (Recomendado 16:9)</span>
-            </template>
-
-            <template v-else>
-              <img :src="imagePreview" alt="Previsualización" class="preview-img" />
-              <button type="button" class="remove-img-btn" @click.stop="removeImage">
-                ✕ Eliminar
-              </button>
-            </template>
-          </div>
         </div>
 
         <!-- Contenido / Descripción -->
@@ -114,6 +131,8 @@
             required
           ></textarea>
         </div>
+
+        <p v-if="errorMsg" class="error-text" role="alert">{{ errorMsg }}</p>
 
         <!-- Botones de Acción -->
         <div class="form-actions">
@@ -132,9 +151,14 @@
 </template>
 
 <script setup>
-import { ref } from 'vue';
+// Pantalla Crear Aviso (solo con permiso 'publicar_avisos'; la sesión la revisa el router)
+// Destino: toda la empresa, un departamento o una persona (server/routes/anuncios.js).
+// "Destacar" lo manda al carrusel de inicio (migración 014). La imagen y los adjuntos
+// quedan para después, cuando se defina dónde se guardan los archivos.
+import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { apiFetch } from '../api';
+import { usuarioTienePermiso } from '../utils/estadisticas';
 import AppHeader from '../components/AppHeader.vue';
 import SidebarMenu from '../components/SidebarMenu.vue';
 import NotificationsDrawer from '../components/NotificationsDrawer.vue';
@@ -143,52 +167,81 @@ const router = useRouter();
 const isMenuOpen = ref(false);
 const isNotificationsOpen = ref(false);
 const isSubmitting = ref(false);
+const errorMsg = ref('');
 
-const fileInput = ref(null);
-const imagePreview = ref(null);
+const OPCIONES_DESTINO = [
+  { valor: 'general', titulo: 'Toda la empresa', sub: 'Todos los colaboradores' },
+  { valor: 'departamento', titulo: 'Un departamento', sub: 'Solo sus integrantes' },
+  { valor: 'persona', titulo: 'Una persona', sub: 'Solo ella lo verá' }
+];
+const MAX_RESULTADOS_PERSONA = 8;
 
 const nuevoAviso = ref({
   titulo: '',
   categoria: '',
-  tipo: 'General',
+  prioridad: 'Normal',
+  destino: 'general',
+  id_dep_destino: '',
   esDestacado: false,
-  contenido: '',
-  imagen: null
+  contenido: ''
 });
 
-const triggerFileInput = () => {
-  fileInput.value?.click();
+// Catálogos para el destino
+const departamentos = ref([]);
+const personas = ref([]);
+const buscarPersona = ref('');
+const personaElegida = ref(null);
+
+// Búsqueda sin distinguir mayúsculas ni acentos ("jose" encuentra "José")
+const normalizar = (texto) => (texto || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+const personasEncontradas = computed(() => {
+  const buscado = normalizar(buscarPersona.value.trim());
+  return personas.value
+    .filter((p) => normalizar(p.nombre_completo).includes(buscado))
+    .slice(0, MAX_RESULTADOS_PERSONA);
+});
+
+const elegirPersona = (p) => {
+  personaElegida.value = p;
+  buscarPersona.value = '';
 };
 
-const handleImageUpload = (e) => {
-  const file = e.target.files[0];
-  if (file) {
-    nuevoAviso.value.imagen = file;
-    imagePreview.value = URL.createObjectURL(file);
+// Frase que confirma a quién le llegará, para evitar mandar algo a toda la empresa por error
+const resumenDestino = computed(() => {
+  const { destino, id_dep_destino } = nuevoAviso.value;
+  if (destino === 'departamento') {
+    const dep = departamentos.value.find((d) => d.id_dep === id_dep_destino);
+    return dep ? `Lo verán solo los integrantes de ${dep.nombre}.` : 'Elige el departamento.';
+  }
+  if (destino === 'persona') {
+    return personaElegida.value ? `Lo verá solo ${personaElegida.value.nombre_completo}.` : 'Busca y elige a la persona.';
+  }
+  return 'Lo verán todos los colaboradores de GEMSO.';
+});
+
+const cargarCatalogos = async () => {
+  try {
+    const [resDep, resPersonas] = await Promise.all([
+      apiFetch('/api/departamentos'),
+      apiFetch('/api/anuncios/destinatarios')
+    ]);
+    if (resDep.ok) departamentos.value = await resDep.json();
+    if (resPersonas.ok) personas.value = await resPersonas.json();
+  } catch (error) {
+    console.error('Error al cargar los destinos:', error);
   }
 };
 
-const removeImage = () => {
-  nuevoAviso.value.imagen = null;
-  imagePreview.value = null;
-  if (fileInput.value) fileInput.value.value = '';
-};
-
 const publicarAviso = async () => {
-  // Revisar que haya sesión iniciada antes de publicar
-  const sesion = localStorage.getItem('usuario');
-  const usuario = sesion ? JSON.parse(sesion) : null;
-  if (!usuario?.id_usu) {
-    alert('Tu sesión expiró. Inicia sesión nuevamente para publicar.');
-    router.push('/login');
+  errorMsg.value = '';
+  const { destino, id_dep_destino } = nuevoAviso.value;
+  if (destino === 'persona' && !personaElegida.value) {
+    errorMsg.value = 'Elige a la persona a la que va dirigido el aviso.';
     return;
   }
 
   isSubmitting.value = true;
-
   try {
-    // Nota: "Destacado" y la imagen todavía no tienen columna en la BD, por eso no se mandan.
-    // TODO: hacer la migracion para 'destacado' y ver donde se van a guardar las imagenes
     // El autor lo saca el servidor del token de sesión
     const response = await apiFetch('/api/anuncios', {
       method: 'POST',
@@ -197,26 +250,36 @@ const publicarAviso = async () => {
         titulo: nuevoAviso.value.titulo,
         contenido: nuevoAviso.value.contenido,
         categoria: nuevoAviso.value.categoria,
-        urgente: nuevoAviso.value.tipo === 'Urgente'
+        urgente: nuevoAviso.value.prioridad === 'Urgente',
+        destacado: nuevoAviso.value.esDestacado,
+        id_dep_destino: destino === 'departamento' ? id_dep_destino : null,
+        id_usu_destino: destino === 'persona' ? personaElegida.value.id_usu : null
       })
     });
 
-    const data = await response.json();
-
+    const data = await response.json().catch(() => ({}));
     if (!response.ok) {
-      alert(data.error || 'Hubo un error al guardar el comunicado');
+      errorMsg.value = data.error || 'Hubo un error al guardar el comunicado';
       return;
     }
 
-    alert('¡Aviso publicado con éxito!');
-    router.push('/mis-avisos');
+    // A dónde ir después de publicar:
+    //   - Para toda la empresa: abrir el aviso, para ver cómo quedó.
+    //   - Dirigido: el autor no lo ve en su lista (regla de visibilidad de routes/anuncios.js),
+    //     así que se abren sus estadísticas, que además confirman a quién le llegó.
+    const id = data.anuncio.id_anu;
+    if (destino === 'general') router.push(`/mis-avisos/${id}`);
+    else if (usuarioTienePermiso('ver_estadisticas')) router.push(`/estadisticas/${id}`);
+    else router.push('/mis-avisos');
   } catch (error) {
     console.error('Error al publicar el aviso:', error);
-    alert('No se pudo conectar con el servidor');
+    errorMsg.value = 'No se pudo conectar con el servidor';
   } finally {
     isSubmitting.value = false;
   }
 };
+
+onMounted(cargarCatalogos);
 </script>
 
 <style scoped>
@@ -328,6 +391,7 @@ textarea {
   color: var(--text-primary, #0f172a);
   box-sizing: border-box;
   outline: none;
+  font-family: inherit; /* el textarea no hereda la letra de la app por defecto */
   transition: border-color 0.2s ease, background-color 0.2s ease;
 }
 
@@ -378,74 +442,155 @@ textarea:focus {
   cursor: pointer;
 }
 
-/* Carga de Imagen */
-.hidden-file-input {
-  display: none;
-}
-
-.image-upload-box {
-  border: 2px dashed var(--border-color, #cbd5e1);
-  border-radius: 12px;
-  padding: 1.5rem;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  background: var(--bg-primary, #f8fafc);
-  cursor: pointer;
-  position: relative;
-  min-height: 140px;
-  transition: border-color 0.2s ease, background-color 0.2s ease;
-}
-
-.image-upload-box:hover {
-  border-color: var(--brand-primary, #000080);
-  background-color: var(--tint-brand-bg, #f0f4ff);
-}
-
-.image-upload-box.has-image {
+/* Destino */
+.destino {
+  border: none;
+  margin: 0;
   padding: 0;
-  border-style: solid;
-  overflow: hidden;
+  min-width: 0;
 }
 
-.upload-icon {
-  width: 32px;
-  height: 32px;
-  color: var(--text-secondary, #64748b);
-}
-
-.upload-text {
+.destino legend {
   font-size: 0.875rem;
   font-weight: 600;
   color: var(--text-primary, #1e293b);
-  margin-top: 0.4rem;
+  padding: 0;
+  margin-bottom: 0.4rem;
 }
 
-.upload-sub {
-  font-size: 0.725rem;
-  color: var(--text-secondary, #94a3b8);
-  margin-top: 0.1rem;
+.destino-opciones {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.6rem;
 }
 
-.preview-img {
-  width: 100%;
-  max-height: 240px;
-  object-fit: cover;
+@media (max-width: 540px) {
+  .destino-opciones {
+    grid-template-columns: 1fr;
+  }
 }
 
-.remove-img-btn {
-  position: absolute;
-  top: 0.75rem;
-  right: 0.75rem;
-  background: rgba(15, 23, 42, 0.8);
-  color: #ffffff;
-  border: none;
-  padding: 0.35rem 0.75rem;
-  border-radius: 6px;
-  font-size: 0.75rem;
-  font-weight: 600;
+.destino-opcion {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid var(--border-color, #cbd5e1);
+  border-radius: 10px;
+  background: var(--bg-input, #f8fafc);
   cursor: pointer;
+}
+
+.destino-opcion.activa {
+  border-color: var(--brand-primary, #000080);
+  background: var(--tint-brand-bg, #e0e7ff);
+}
+
+/* El radio queda oculto pero accesible: toda la tarjeta es la opción */
+.destino-opcion input {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+}
+
+.destino-opcion:focus-within {
+  outline: 2px solid var(--brand-primary, #000080);
+  outline-offset: 2px;
+}
+
+.destino-titulo {
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.destino-sub,
+.nota {
+  font-size: 0.75rem;
+  color: var(--text-secondary, #64748b);
+}
+
+.persona-destino input[type="search"] {
+  width: 100%;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid var(--border-color, #cbd5e1);
+  border-radius: 8px;
+  font-size: 0.9rem;
+  background-color: var(--bg-input, #f8fafc);
+  color: var(--text-primary, #0f172a);
+  box-sizing: border-box;
+  outline: none;
+}
+
+.persona-destino input[type="search"]:focus {
+  border-color: var(--brand-primary, #000080);
+  background-color: var(--bg-surface, #ffffff);
+}
+
+.persona-resultados {
+  list-style: none;
+  margin: 0.4rem 0 0;
+  padding: 0.25rem;
+  border: 1px solid var(--border-color, #e2e8f0);
+  border-radius: 8px;
+  background: var(--bg-surface, #ffffff);
+}
+
+.persona-resultados button {
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  padding: 0.6rem 0.7rem;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  color: var(--text-primary, #0f172a);
+  cursor: pointer;
+}
+
+.persona-resultados button:hover,
+.persona-resultados button:focus-visible {
+  background: var(--bg-primary, #f1f5f9);
+}
+
+.persona-vacio {
+  padding: 0.6rem 0.7rem;
+  font-size: 0.8rem;
+  color: var(--text-secondary, #64748b);
+}
+
+.persona-elegida {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid var(--brand-primary, #000080);
+  border-radius: 8px;
+  background: var(--tint-brand-bg, #e0e7ff);
+  font-size: 0.875rem;
+}
+
+.persona-dep {
+  color: var(--text-secondary, #64748b);
+  font-size: 0.8rem;
+}
+
+.link-btn {
+  background: none;
+  border: none;
+  color: var(--brand-primary, #000080);
+  font-weight: 600;
+  font-size: 0.8rem;
+  cursor: pointer;
+  padding: 0;
+}
+
+.error-text {
+  color: var(--color-danger, #dc2626);
+  font-size: 0.85rem;
+  font-weight: 600;
+  margin: 0;
 }
 
 /* Acciones */
