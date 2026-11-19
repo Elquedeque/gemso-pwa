@@ -162,6 +162,40 @@
           </div>
         </section>
 
+        <!-- Contraseña olvidada: TyC genera un enlace y la persona elige la nueva.
+             TyC nunca ve ni escribe la contraseña (routes/colaboradores.js, migración 017). -->
+        <section v-if="!esUnoMismo && colaborador.activo" class="form-card">
+          <h3>Contraseña</h3>
+          <p class="nota">
+            Si olvidó su contraseña, genera un enlace y mándaselo por WhatsApp o Teams.
+            Con él elige una contraseña nueva; tú no la ves. Sirve una sola vez y vence en 24 horas.
+          </p>
+
+          <div v-if="enlaceRestablecer" class="enlace-resultado" aria-live="polite">
+            <div class="enlace-fila">
+              <input
+                type="text"
+                :value="enlaceRestablecer.enlace"
+                readonly
+                aria-label="Enlace para restablecer la contraseña"
+                @focus="$event.target.select()"
+              />
+              <button type="button" class="btn-secundario" @click="copiarEnlace">{{ copiado ? 'Copiado' : 'Copiar' }}</button>
+            </div>
+            <p class="nota">
+              Este enlace solo se muestra ahora; si lo pierdes, genera otro (el anterior deja de servir).
+              Vence el {{ formatearFechaHora(enlaceRestablecer.fecha_expira) }}
+            </p>
+          </div>
+
+          <p v-if="errorEnlace" class="error-text">{{ errorEnlace }}</p>
+          <div class="form-actions">
+            <button type="button" class="submit-btn" :disabled="generandoEnlace" @click="generarEnlace">
+              {{ generandoEnlace ? 'Generando...' : (enlaceRestablecer ? 'Generar otro enlace' : 'Generar enlace para restablecer') }}
+            </button>
+          </div>
+        </section>
+
         <!-- Historial -->
         <section class="form-card">
           <h3>Historial de cambios</h3>
@@ -169,7 +203,9 @@
           <ul v-else class="historial">
             <li v-for="h in historial" :key="h.id_cam">
               <span class="historial-campo">{{ ETIQUETAS_CAMPO[h.campo] || h.campo }}</span>
-              <span class="historial-valores">
+              <!-- De la contraseña solo se guarda qué pasó (nunca el valor), sin "antes" -->
+              <span v-if="h.campo === 'contraseña'" class="historial-valores">{{ h.valor_nuevo }}</span>
+              <span v-else class="historial-valores">
                 <span class="valor-anterior">{{ mostrarValor(h.campo, h.valor_anterior) }}</span>
                 →
                 <span>{{ mostrarValor(h.campo, h.valor_nuevo) }}</span>
@@ -213,7 +249,8 @@ const ETIQUETAS_CAMPO = {
   sucursal: 'Sucursal',
   empresa: 'Empresa',
   gerente: 'Gerente',
-  activo: 'Cuenta'
+  activo: 'Cuenta',
+  contraseña: 'Contraseña'
 };
 
 const route = useRoute();
@@ -234,6 +271,12 @@ const exitoMsg = ref('');
 const confirmandoEstado = ref(false);
 const cambiandoEstado = ref(false);
 const errorEstado = ref('');
+
+// Enlace para restablecer la contraseña: { enlace, fecha_expira } (solo se muestra al generarlo)
+const enlaceRestablecer = ref(null);
+const generandoEnlace = ref(false);
+const errorEnlace = ref('');
+const copiado = ref(false);
 
 // Fecha de hoy 'YYYY-MM-DD' (hora local) para no elegir fechas futuras
 const hoy = (() => {
@@ -363,10 +406,38 @@ const cambiarEstado = async () => {
     if (!res.ok) throw new Error(await leerError(res, 'No se pudo cambiar el estado de la cuenta.'));
     aplicarRespuesta(await res.json());
     confirmandoEstado.value = false;
+    enlaceRestablecer.value = null; // al desactivar, el enlace ya no sirve
   } catch (err) {
     errorEstado.value = err.message;
   } finally {
     cambiandoEstado.value = false;
+  }
+};
+
+const generarEnlace = async () => {
+  errorEnlace.value = '';
+  copiado.value = false;
+  generandoEnlace.value = true;
+  try {
+    const res = await apiFetch(`/api/colaboradores/${colaborador.value.id_usu}/restablecer`, { method: 'POST' });
+    if (!res.ok) throw new Error(await leerError(res, 'No se pudo generar el enlace.'));
+    const data = await res.json();
+    enlaceRestablecer.value = { enlace: data.enlace, fecha_expira: data.fecha_expira };
+    historial.value = data.historial;
+  } catch (err) {
+    errorEnlace.value = err.message;
+  } finally {
+    generandoEnlace.value = false;
+  }
+};
+
+const copiarEnlace = async () => {
+  try {
+    await navigator.clipboard.writeText(enlaceRestablecer.value.enlace);
+    copiado.value = true;
+  } catch {
+    // Sin HTTPS el portapapeles puede no estar disponible: el campo se puede copiar a mano
+    copiado.value = false;
   }
 };
 
@@ -653,5 +724,27 @@ button:disabled {
 .historial-quien {
   font-size: 0.75rem;
   color: var(--text-secondary, #64748b);
+}
+
+/* Enlace para restablecer la contraseña */
+.enlace-resultado {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 0.9rem;
+  border-radius: 10px;
+  border: 1px solid var(--tint-green-border, #bbf7d0);
+  background: var(--tint-green-bg, #f0fdf4);
+}
+
+.enlace-fila {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.enlace-fila input {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.8rem;
 }
 </style>

@@ -3,11 +3,11 @@
 // un enlace de un solo uso que vence en DIAS_VIGENCIA días. Solo con ese enlace se
 // puede crear una cuenta, así nadie elige por su cuenta un departamento con permisos.
 //
-// El enlace lleva un código aleatorio (token). En la BD solo se guarda su huella
-// SHA-256: con la tabla en la mano no se puede armar ningún enlace válido.
-const crypto = require('crypto');
+// El enlace y su huella SHA-256 se arman en services/enlaces.js (lo comparte con
+// el restablecimiento de contraseña).
 const db = require('../config/db');
 const { enviarCorreo, escaparHtml, correoHabilitado } = require('./correo');
+const { generarToken, huella, tokenValido, direccionApp } = require('./enlaces');
 
 const DIAS_VIGENCIA = 7;
 
@@ -24,26 +24,12 @@ const SQL_ESTADO = `
 // Condición de "todavía sirve" (la misma que 'pendiente' arriba)
 const SQL_PENDIENTE = 'i.fecha_uso IS NULL AND i.fecha_cancelada IS NULL AND i.fecha_expira > NOW()';
 
-// Código del enlace: 32 bytes aleatorios en base64url (43 caracteres, seguros en una URL)
-const generarToken = () => crypto.randomBytes(32).toString('base64url');
-
-// Huella que se guarda en la BD y con la que se busca la invitación
-const huella = (token) => crypto.createHash('sha256').update(String(token)).digest('hex');
-
-// Un token con otra forma ni se busca en la BD
-const TOKEN_VALIDO = /^[A-Za-z0-9_-]{43}$/;
-
-// Dirección de la app para armar el enlace.
-// APP_URL en el .env (por ejemplo https://app.gemso.com.mx). Si no está, se usa la
-// dirección desde la que TyC abrió la app, que en desarrollo es la de Vite.
-const direccionApp = (origen) => (process.env.APP_URL || origen || 'http://localhost:5173').replace(/\/+$/, '');
-
 const enlaceRegistro = (token, origen) => `${direccionApp(origen)}/registro?invitacion=${token}`;
 
 // Buscar una invitación pendiente por su token.
 // Regresa { id_inv, correo, id_departamento, departamento, fecha_expira } o null.
 const buscarPendiente = async (token) => {
-  if (!TOKEN_VALIDO.test(String(token ?? ''))) return null;
+  if (!tokenValido(token)) return null;
   const result = await db.query(
     `SELECT i.id_inv, i.correo, i.id_departamento, d.nombre AS departamento, i.fecha_expira
      FROM invitaciones i

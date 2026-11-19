@@ -2,10 +2,15 @@
 //   GET /api/perfil  Datos personales y laborales del usuario
 //   PUT /api/perfil  Guardar los cambios que el usuario sí puede editar
 //   PUT /api/perfil/preferencias  Guardar el interruptor "Correos informativos" de Ajustes
+//   PUT /api/perfil/contrasena    Cambiar la contraseña: { actual, nueva }
 // El usuario se saca del token, así cada quien solo ve y edita su propio perfil.
 const express = require('express');
+const jwt = require('jsonwebtoken');
 const db = require('../config/db');
 const autenticar = require('../middleware/autenticar');
+const { JWT_SECRET, DURACION_SESION } = require('../config/auth');
+const { cifrar, verificar, validarNueva } = require('../services/contrasenas');
+const { crearLimite } = require('../services/limiteIntentos');
 const {
   normalizarCorreo,
   normalizarTelefono,
@@ -15,6 +20,10 @@ const {
 } = require('../services/validaciones');
 
 const router = express.Router();
+
+// 5 intentos con la contraseña actual equivocada bloquean el cambio 15 minutos.
+// Así, quien encuentre un celular con la sesión abierta no puede probar contraseñas.
+const limiteContrasena = crearLimite({ maximo: 5, minutos: 15 });
 
 // Consulta del perfil completo (la usan GET y PUT para responder lo mismo)
 // Se usa LEFT JOIN porque sucursal, empresa y gerente pueden venir vacíos (migraciones 003 a 005).
@@ -128,6 +137,59 @@ router.put('/preferencias', autenticar, async (req, res) => {
   } catch (error) {
     console.error('Error al guardar preferencias:', error);
     res.status(500).json({ error: 'Error interno del servidor al guardar las preferencias' });
+  }
+});
+
+// Cambiar la contraseña con la sesión iniciada
+// Pide la actual, para que nadie la cambie con un celular que encontró desbloqueado.
+// Al cambiarla se cierran las sesiones de los otros dispositivos (contrasena_cambiada,
+// migración 017) y este dispositivo recibe un token nuevo para seguir dentro.
+// Si la actual es incorrecta se responde 400 y no 401: el 401 cerraría la sesión en la app.
+router.put('/contrasena', autenticar, async (req, res) => {
+  const idUsu = req.usuario.id_usu;
+  const { actual, nueva } = req.body || {};
+
+  if (typeof actual !== 'string' || !actual) {
+    return res.status(400).json({ error: 'Escribe tu contraseña actual' });
+  }
+  const errorNueva = validarNueva(nueva);
+  if (errorNueva) return res.status(400).json({ error: errorNueva });
+  if (nueva === actual) {
+    return res.status(400).json({ error: 'La contraseña nueva debe ser distinta de la actual' });
+  }
+  if (limiteContrasena.bloqueado(idUsu)) {
+    return res.status(429).json({
+      error: `Demasiados intentos con la contraseña actual. Espera ${limiteContrasena.minutos} minutos e inténtalo de nuevo.`
+    });
+  }
+
+  try {
+    const result = await db.query('SELECT contraseña AS hash FROM usuarios WHERE id_usu = $1', [idUsu]);
+    if (!(await verificar(actual, result.rows[0]?.hash))) {
+      limiteContrasena.fallo(idUsu);
+      return res.status(400).json({ error: 'La contraseña actual no es correcta' });
+    }
+    limiteContrasena.limpiar(idUsu);
+
+    const hash = await cifrar(nueva);
+    await db.transaccion(async (cliente) => {
+      await cliente.query(
+        'UPDATE usuarios SET contraseña = $1, contrasena_cambiada = NOW() WHERE id_usu = $2',
+        [hash, idUsu]
+      );
+      await cliente.query(
+        `INSERT INTO cambios_colaboradores (id_usu, campo, valor_anterior, valor_nuevo, cambiado_por)
+         VALUES ($1, 'contraseña', NULL, 'Cambiada por el colaborador', $1)`,
+        [idUsu]
+      );
+    });
+
+    // Token nuevo: se emite después del cambio, así que este sí pasa la revisión de autenticar.js
+    const token = jwt.sign({ id_usu: idUsu }, JWT_SECRET, { expiresIn: DURACION_SESION });
+    res.json({ message: 'Contraseña actualizada. Se cerró la sesión en tus otros dispositivos.', token });
+  } catch (error) {
+    console.error('Error al cambiar la contraseña:', error);
+    res.status(500).json({ error: 'Error interno del servidor al cambiar la contraseña' });
   }
 });
 

@@ -75,6 +75,9 @@
             {{ guardando ? 'Guardando...' : 'Guardar Cambios' }}
           </button>
         </div>
+
+        <!-- Contraseña: tiene su propio botón, no se guarda con "Guardar Cambios" -->
+        <CambiarContrasena id-base="ajustes-contrasena" />
       </div>
     </main>
 
@@ -89,6 +92,7 @@ import { ref, computed, onMounted } from 'vue';
 import AppHeader from '../components/AppHeader.vue';
 import SidebarMenu from '../components/SidebarMenu.vue';
 import NotificationsDrawer from '../components/NotificationsDrawer.vue';
+import CambiarContrasena from '../components/CambiarContrasena.vue';
 import { estadoPush, activarPush, desactivarPush, probarPush } from '../utils/push';
 import { apiFetch } from '../api';
 

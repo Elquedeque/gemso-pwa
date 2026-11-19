@@ -27,6 +27,7 @@ const estadisticasRoutes = require('./routes/estadisticas');
 const pushRoutes = require('./routes/push');
 const invitacionesRoutes = require('./routes/invitaciones');
 const colaboradoresRoutes = require('./routes/colaboradores');
+const restablecerRoutes = require('./routes/restablecer');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -46,6 +47,7 @@ app.use('/api/estadisticas', estadisticasRoutes);
 app.use('/api/push', pushRoutes);
 app.use('/api/invitaciones', invitacionesRoutes);
 app.use('/api/colaboradores', colaboradoresRoutes);
+app.use('/api/restablecer', restablecerRoutes); // público: enlace para poner contraseña nueva
 
 // Errores al leer el cuerpo de la petición (por ejemplo, un archivo más grande que el límite
 // de express.raw): se responde en JSON y no con la página de error de Express

@@ -56,6 +56,13 @@ const routes = [
     meta: { publica: true }
   },
   {
+    // Enlace para poner una contraseña nueva (lo genera Talento y Cultura)
+    path: '/restablecer',
+    name: 'restablecer',
+    component: () => import('../views/RestablecerView.vue'),
+    meta: { publica: true }
+  },
+  {
     path: '/anuncios',
     name: 'anuncios',
     component: AnunciosView

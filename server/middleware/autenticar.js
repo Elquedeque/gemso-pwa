@@ -21,8 +21,12 @@ const autenticar = async (req, res, next) => {
   }
 
   try {
+    // cambio_segundos: fecha del último cambio de contraseña en segundos desde 1970,
+    // la misma unidad que "iat" (cuándo se emitió el token)
     const result = await db.query(
-      'SELECT id_usu, id_departamento, activo FROM usuarios WHERE id_usu = $1',
+      `SELECT id_usu, id_departamento, activo,
+              FLOOR(EXTRACT(EPOCH FROM contrasena_cambiada))::bigint AS cambio_segundos
+       FROM usuarios WHERE id_usu = $1`,
       [payload.id_usu]
     );
     if (result.rows.length === 0) {
@@ -32,7 +36,13 @@ const autenticar = async (req, res, next) => {
     if (!result.rows[0].activo) {
       return res.status(401).json({ error: 'Tu cuenta está desactivada. Comunícate con Talento y Cultura.' });
     }
-    const { activo, ...usuario } = result.rows[0];
+    // Si cambió o restableció su contraseña, los tokens anteriores dejan de servir
+    // (migración 017). Así se cierran las sesiones de los otros dispositivos.
+    const cambio = result.rows[0].cambio_segundos;
+    if (cambio !== null && Number(payload.iat) < Number(cambio)) {
+      return res.status(401).json({ error: 'Tu contraseña cambió. Inicia sesión nuevamente' });
+    }
+    const { activo, cambio_segundos, ...usuario } = result.rows[0];
     req.usuario = usuario;
     next();
   } catch (error) {

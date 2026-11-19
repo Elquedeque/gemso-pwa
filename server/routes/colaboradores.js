@@ -4,9 +4,11 @@
 //   GET /api/colaboradores/:id         Datos de un colaborador y su historial de cambios
 //   PUT /api/colaboradores/:id         Corregir sus datos
 //   PUT /api/colaboradores/:id/estado  Desactivar o reactivar: { "activo": false }
+//   POST /api/colaboradores/:id/restablecer  Generar un enlace para que ponga una contraseña nueva
 //
 // Reglas:
 //   - El servidor decide qué campos se pueden cambiar; la contraseña nunca se ve ni se cambia aquí.
+//     Para una contraseña olvidada, TyC genera un enlace y la persona elige la nueva (migración 017).
 //   - Cada dato cambiado queda en cambios_colaboradores (quién, cuándo, antes y después).
 //   - Al pasar a alguien a Talento y Cultura recibe sus permisos (PERMISOS_TYC); al sacarlo, los pierde.
 //   - Nadie puede cambiar su propio departamento ni desactivarse, para que TyC no se quede sin acceso.
@@ -26,6 +28,7 @@ const {
   idValido,
   fechaValida
 } = require('../services/validaciones');
+const restablecimientos = require('../services/restablecimientos');
 
 const router = express.Router();
 router.use(autenticar, requierePermiso(PERMISO_GESTIONAR_COLABORADORES));
@@ -315,6 +318,38 @@ router.put('/:id/estado', async (req, res) => {
     });
   } catch (error) {
     console.error('Error al cambiar el estado del colaborador:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// Generar un enlace para restablecer la contraseña de un colaborador que la olvidó.
+// TyC se lo manda por otro medio (WhatsApp, Teams) mientras no haya correo real.
+// El enlace solo se muestra en esta respuesta; si se pierde, se genera otro.
+// TyC no se lo genera a sí mismo: para eso está "Cambiar contraseña" en Ajustes y Mi Perfil.
+router.post('/:id/restablecer', async (req, res) => {
+  const idUsu = idValido(req.params.id);
+  if (!idUsu) return res.status(400).json({ error: 'Colaborador no válido' });
+  if (idUsu === req.usuario.id_usu) {
+    return res.status(400).json({ error: 'Para tu propia cuenta usa "Cambiar contraseña" en Ajustes o en Mi Perfil' });
+  }
+
+  try {
+    const encontrado = await db.query('SELECT activo FROM usuarios WHERE id_usu = $1', [idUsu]);
+    if (encontrado.rows.length === 0) return res.status(404).json({ error: 'Colaborador no encontrado' });
+    if (!encontrado.rows[0].activo) {
+      return res.status(400).json({ error: 'La cuenta está desactivada. Reactívala antes de generar el enlace' });
+    }
+
+    const { token, fecha_expira } = await restablecimientos.crear({ idUsu, creadoPor: req.usuario.id_usu });
+    res.status(201).json({
+      message: 'Enlace generado',
+      enlace: restablecimientos.enlaceRestablecer(token, req.get('origin')),
+      fecha_expira,
+      horas_vigencia: restablecimientos.HORAS_VIGENCIA,
+      historial: await obtenerHistorial(idUsu)
+    });
+  } catch (error) {
+    console.error('Error al generar el enlace de restablecimiento:', error);
     res.status(500).json({ error: 'Error interno del servidor' });
   }
 });

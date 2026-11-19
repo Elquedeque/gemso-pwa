@@ -105,6 +105,9 @@
               </div>
             </div>
           </article>
+
+          <!-- Seguridad: el mismo componente que en Ajustes -->
+          <CambiarContrasena id-base="perfil-contrasena" />
         </section>
       </div>
     </main>
@@ -120,6 +123,7 @@ import { ref, computed, onMounted } from 'vue';
 import AppHeader from '../components/AppHeader.vue';
 import SidebarMenu from '../components/SidebarMenu.vue';
 import NotificationsDrawer from '../components/NotificationsDrawer.vue';
+import CambiarContrasena from '../components/CambiarContrasena.vue';
 import { apiFetch } from '../api';
 import { mostrar, obtenerIniciales, formatearTelefono, formatearFecha, calcularAntiguedad } from '../utils/perfil';
 

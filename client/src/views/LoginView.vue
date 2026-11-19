@@ -38,10 +38,20 @@
         </div>
 
         <div class="forgot-container">
-          <a href="#" @click.prevent="olvidoContraseña" class="forgot-link">
+          <a
+            href="#"
+            class="forgot-link"
+            :aria-expanded="ayudaContraseña"
+            @click.prevent="ayudaContraseña = !ayudaContraseña"
+          >
             ¿Olvidó su contraseña?
           </a>
         </div>
+
+        <!-- Mientras no haya correo real, el enlace para restablecer lo genera Talento y Cultura -->
+        <p v-if="ayudaContraseña" class="forgot-help" role="status">
+          Pide a Talento y Cultura un enlace para restablecerla. Con ese enlace eliges una contraseña nueva.
+        </p>
 
         <p v-if="errorMessage" class="error-msg">{{ errorMessage }}</p>
 
@@ -121,9 +131,8 @@ const handleLogin = async () => {
   }
 };
 
-const olvidoContraseña = () => {
-  alert('Comunícate con el administrador para restablecer tu contraseña.');
-};
+// Muestra cómo recuperar la contraseña (antes era un alert)
+const ayudaContraseña = ref(false);
 
 const goRegister = () => {
   router.push('/registro');
@@ -239,6 +248,17 @@ const goRegister = () => {
 .forgot-link:hover {
   color: var(--brand-primary, #000080);
   text-decoration: underline;
+}
+
+.forgot-help {
+  font-size: 0.85rem;
+  text-align: left;
+  color: var(--text-primary, #0f172a);
+  background-color: var(--tint-blue-bg, #eff6ff);
+  padding: 0.7rem 0.85rem;
+  border-radius: 8px;
+  margin: -0.75rem 0 1.25rem;
+  line-height: 1.45;
 }
 
 /* Mensaje de Error */
