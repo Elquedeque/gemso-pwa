@@ -10,65 +10,43 @@
     <main class="dashboard-main">
       <header class="page-header">
         <h2>Centro de Ayuda y Soporte</h2>
-        <p class="subtitle">Resuelve tus dudas o reporta un problema técnico con la plataforma</p>
+        <p class="subtitle">Resuelve tus dudas o envía una solicitud a Talento y Cultura</p>
       </header>
 
       <div class="help-grid">
-        <!-- Columna Izquierda: Formulario de Reporte / Contacto -->
+        <!-- Columna Izquierda: Solicitudes y contacto -->
         <section class="help-section">
+          <!-- Las solicitudes se hacen en el formulario de Monday que ya usa la empresa.
+               La app no guarda reportes propios para no tener dos lugares donde revisar. -->
           <article class="help-card">
             <div class="card-header">
               <svg class="section-icon" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M20 8h-3V4c0-1.1-.9-2-2-2H9c-1.1 0-2 .9-2 2v4H4c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zM9 4h6v4H9V4zm11 16H4V10h16v10z"/>
               </svg>
               <div>
-                <h3>Reportar un Problema</h3>
-                <p class="card-desc">Envía un ticket a Soporte TI / Talento y Cultura</p>
+                <h3>Hacer una Solicitud</h3>
+                <p class="card-desc">Problemas con la app, tu cuenta o tus datos</p>
               </div>
             </div>
 
-            <!-- Alerta de éxito al enviar -->
-            <div v-if="enviadoConExito" class="success-alert">
-              <svg class="alert-icon" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+            <p class="card-text">
+              Las solicitudes a Talento y Cultura se registran en el formulario de Monday.
+              Ahí puedes reportar una falla de la aplicación, un problema para entrar,
+              información incorrecta en tu perfil o una sugerencia.
+            </p>
+
+            <a
+              :href="URL_SOLICITUD_TYC"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="submit-btn"
+            >
+              Abrir formulario de solicitud
+              <svg class="btn-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <path d="M19 19H5V5h7V3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z"/>
               </svg>
-              <div>
-                <strong>¡Reporte enviado con éxito!</strong>
-                <p>El equipo de soporte revisará tu caso a la brevedad.</p>
-              </div>
-            </div>
-
-            <!-- Formulario -->
-            <form v-else @submit.prevent="enviarReporte" class="help-form">
-              <div class="form-group">
-                <label for="asunto">Categoría o Asunto *</label>
-                <select id="asunto" v-model="form.categoria" required class="form-input">
-                  <option value="" disabled selected>Selecciona una opción</option>
-                  <option value="falla_app">Falla técnica en la aplicación</option>
-                  <option value="cuenta_acceso">Problemas de acceso o contraseña</option>
-                  <option value="datos_erroneos">Información personal / laboral incorrecta</option>
-                  <option value="sugerencia">Sugerencia de mejora</option>
-                  <option value="otro">Otro motivo</option>
-                </select>
-              </div>
-
-              <div class="form-group">
-                <label for="descripcion">Descripción del Problema *</label>
-                <textarea 
-                  id="descripcion" 
-                  v-model="form.descripcion" 
-                  rows="4" 
-                  placeholder="Detalla qué estabas haciendo o qué error te aparece..." 
-                  required 
-                  class="form-input textarea"
-                ></textarea>
-              </div>
-
-              <button type="submit" class="submit-btn" :disabled="enviando">
-                <span v-if="enviando">Enviando...</span>
-                <span v-else>Enviar Reporte</span>
-              </button>
-            </form>
+            </a>
+            <p class="card-note">Se abre en una pestaña nueva.</p>
           </article>
 
           <!-- Contacto Directo Rápido -->
@@ -119,17 +97,10 @@ import { ref } from 'vue';
 import AppHeader from '../components/AppHeader.vue';
 import SidebarMenu from '../components/SidebarMenu.vue';
 import NotificationsDrawer from '../components/NotificationsDrawer.vue';
+import { URL_SOLICITUD_TYC } from '../utils/enlaces';
 
 const isMenuOpen = ref(false);
 const isNotificationsOpen = ref(false);
-
-const enviando = ref(false);
-const enviadoConExito = ref(false);
-
-const form = ref({
-  categoria: '',
-  descripcion: ''
-});
 
 const faqs = ref([
   {
@@ -142,31 +113,14 @@ const faqs = ref([
   },
   {
     pregunta: '¿Qué hago si la aplicación no carga correctamente?',
-    respuesta: 'Intenta recargar la página o borrar la caché de tu navegador. Si el problema persiste, envía un reporte usando el formulario en esta pantalla.'
+    respuesta: 'Intenta recargar la página o borrar la caché de tu navegador. Si el problema persiste, envía una solicitud con el formulario de esta pantalla.'
   },
   {
-    pregunta: '¿Dónde consulto mis documentos laborales?',
-    respuesta: 'Puedes ingresar al menú lateral desplegable y seleccionar la sección "Documentos" para ver o descargar tus archivos organizacionales.'
+    pregunta: '¿Cómo hago una solicitud a Talento y Cultura?',
+    respuesta: 'Usa el botón "Abrir formulario de solicitud" de esta pantalla o la opción "Solicitud T&C" del menú lateral. Las dos abren el formulario de Monday donde Talento y Cultura da seguimiento.'
   }
 ]);
 
-const enviarReporte = () => {
-  enviando.value = true;
-  
-  // Simulación de envío (aquí se conectará a la API del backend)
-  // Falta: endpoint POST /api/reportes y su tabla. Ver con quien de sistemas le llegan los reportes
-  setTimeout(() => {
-    enviando.value = false;
-    enviadoConExito.value = true;
-    
-    // Resetear formulario tras 4 segundos
-    setTimeout(() => {
-      enviadoConExito.value = false;
-      form.value.categoria = '';
-      form.value.descripcion = '';
-    }, 4000);
-  }, 1000);
-};
 </script>
 
 <style scoped>
@@ -259,48 +213,32 @@ const enviarReporte = () => {
   margin: 0.1rem 0 0 0;
 }
 
-/* Formulario */
-.help-form {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
+/* Tarjeta de solicitud */
+.card-text {
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: color-mix(in srgb, var(--text-primary, #0f172a) 85%, transparent);
+  margin: 0 0 1.25rem 0;
 }
 
-.form-group {
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
+.card-note {
+  font-size: 0.75rem;
+  color: var(--text-secondary, #64748b);
+  text-align: center;
+  margin: 0.5rem 0 0 0;
 }
 
-.form-group label {
-  font-size: 0.825rem;
-  font-weight: 600;
-  color: var(--text-primary, #0f172a);
-}
-
-.form-input {
-  width: 100%;
-  padding: 0.75rem 0.85rem;
-  border-radius: 10px;
-  border: 1px solid var(--border-color, #cbd5e1);
-  background-color: var(--bg-input, #f8fafc);
-  color: var(--text-primary, #0f172a);
-  font-size: 0.9rem;
-  box-sizing: border-box;
-  outline: none;
-  transition: border-color 0.2s ease;
-}
-
-.form-input:focus {
-  border-color: var(--brand-primary, #000080);
-}
-
-.textarea {
-  resize: vertical;
-  font-family: inherit;
+.btn-icon {
+  width: 16px;
+  height: 16px;
 }
 
 .submit-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  text-decoration: none;
   background: var(--brand-primary, #000080);
   color: #ffffff;
   border: none;
@@ -310,44 +248,10 @@ const enviarReporte = () => {
   font-size: 0.9rem;
   cursor: pointer;
   transition: opacity 0.2s ease;
-  margin-top: 0.5rem;
 }
 
-.submit-btn:hover:not(:disabled) {
+.submit-btn:hover {
   opacity: 0.9;
-}
-
-.submit-btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-/* Alerta de Éxito */
-.success-alert {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.75rem;
-  background-color: var(--tint-green-bg, #f0fdf4);
-  border: 1px solid var(--tint-green-border, #bbf7d0);
-  color: var(--tint-green-text, #166534);
-  padding: 1rem;
-  border-radius: 12px;
-}
-
-.alert-icon {
-  width: 24px;
-  height: 24px;
-  color: #22c55e;
-  flex-shrink: 0;
-}
-
-.success-alert strong {
-  font-size: 0.95rem;
-}
-
-.success-alert p {
-  font-size: 0.825rem;
-  margin: 0.2rem 0 0 0;
 }
 
 /* Contacto Rápido */

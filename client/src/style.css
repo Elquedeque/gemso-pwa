@@ -69,6 +69,50 @@ html.dark {
   --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4);
 }
 
+/* ALTO CONTRASTE (clase .high-contrast en <html>, ver utils/tema.js)
+   Se combina con cualquiera de los dos temas: solo endurece textos y bordes.
+   Como todas las pantallas usan estas variables, el cambio llega a toda la app
+   sin tocar cada componente. */
+html.high-contrast {
+  --text-primary: #000000;
+  --text-secondary: #1e293b;    /* el gris secundario pasa a casi negro */
+  --border-color: #475569;      /* bordes visibles en tarjetas, inputs y separadores */
+  --bg-primary: #e2e8f0;        /* más diferencia entre el fondo y las tarjetas */
+  --tint-blue-text: #1d4ed8;
+  --tint-green-text: #166534;
+  --tint-green-border: #15803d;
+  --tint-red-border: #b91c1c;
+  --color-danger: #b91c1c;
+  --brand-accent: #0369a1;
+  --chart-pendiente: #94a3b8;
+}
+
+html.dark.high-contrast {
+  --text-primary: #ffffff;
+  --text-secondary: #e2e8f0;
+  --border-color: #94a3b8;
+  --bg-primary: #000000;
+  --bg-surface: #111827;
+  --bg-input: #000000;
+  --tint-blue-text: #93c5fd;
+  --tint-green-text: #86efac;
+  --tint-green-border: #4ade80;
+  --tint-red-border: #f87171;
+  --color-danger: #fca5a5;
+  --brand-accent: #7dd3fc;
+  --chart-pendiente: #64748b;
+}
+
+/* Foco del teclado siempre visible y los enlaces de texto subrayados */
+html.high-contrast :focus-visible {
+  outline: 3px solid var(--text-primary);
+  outline-offset: 2px;
+}
+
+html.high-contrast a:not([class]) {
+  text-decoration: underline;
+}
+
 /* Durante el cambio de tema todo cambia a la vez (ver utils/tema.js) */
 html.sin-transiciones *,
 html.sin-transiciones *::before,
