@@ -10,24 +10,18 @@ const CACHE_API = 'gemso-api';
 
 // Borrar la sesión que guardó LoginView.
 // También se borra el caché de la API, para que en un equipo compartido
-// el siguiente usuario no vea sin conexión los avisos del anterior,
-// y la suscripción push, para que no le lleguen sus notificaciones.
+// el siguiente usuario no vea sin conexión los avisos del anterior.
 // Las preferencias de Accesibilidad (tema, tamaño de letra) se conservan.
+//
+// Las notificaciones push NO se tocan aquí. Esta función también corre cuando la
+// sesión vence (respuesta 401), y en ese caso el colaborador debe seguir recibiendo
+// avisos. Solo "Cerrar sesión" del menú las desactiva (desactivarPush en SidebarMenu).
+// En un equipo compartido no hay problema: al iniciar sesión, reasignarPush()
+// (utils/push.js) le pasa el dispositivo a quien acaba de entrar.
 export const cerrarSesionLocal = () => {
   localStorage.removeItem('usuario');
   localStorage.removeItem('token');
   if ('caches' in window) caches.delete(CACHE_API).catch(() => {});
-
-  // Quitar la suscripción push del navegador (por ejemplo si la sesión venció).
-  // Al servidor no se le avisa porque ya no hay token; en el siguiente envío
-  // el servicio push responde 410 y el servidor borra la suscripción solo.
-  if ('serviceWorker' in navigator) {
-    navigator.serviceWorker
-      .getRegistration()
-      .then((registro) => registro?.pushManager?.getSubscription())
-      .then((suscripcion) => suscripcion?.unsubscribe())
-      .catch(() => {});
-  }
 };
 
 // Petición a la API mandando el token de sesión en "Authorization"

@@ -96,6 +96,25 @@ export const activarPush = async () => {
   }
 };
 
+// Al iniciar sesión: si este dispositivo ya tenía las notificaciones activas,
+// se le asignan al usuario que acaba de entrar (el servidor actualiza la fila por
+// su endpoint, ON CONFLICT en routes/push.js).
+// Cubre dos casos:
+//   - La sesión venció y la misma persona vuelve a entrar: nada cambia.
+//   - En un equipo compartido entra otra persona: deja de recibir los avisos
+//     del anterior y empieza a recibir los suyos.
+// Nunca pide permiso: si no hay suscripción, no hace nada.
+export const reasignarPush = async () => {
+  if (!soportaPush() || Notification.permission !== 'granted') return;
+  const suscripcion = await obtenerSuscripcion();
+  if (!suscripcion) return;
+  await apiFetch('/api/push/suscripcion', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(suscripcion)
+  });
+};
+
 // Desactivar las notificaciones en este dispositivo (servidor y navegador)
 export const desactivarPush = async () => {
   const suscripcion = await obtenerSuscripcion();

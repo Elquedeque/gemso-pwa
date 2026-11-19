@@ -65,6 +65,7 @@
 import { ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { API_URL } from '../api';
+import { reasignarPush } from '../utils/push';
 
 // Importación de la imagen desde client/src/assets/icon_GEMSO.png
 import logoGemso from '../assets/icon_GEMSO.png';
@@ -99,6 +100,10 @@ const handleLogin = async () => {
     // Guardar sesión del usuario localmente
     localStorage.setItem('usuario', JSON.stringify(data.usuario));
     localStorage.setItem('token', data.token);
+
+    // Si este dispositivo ya recibía notificaciones, pasarlas a esta cuenta.
+    // No se espera: si falla (sin conexión), el login sigue igual.
+    reasignarPush().catch(() => {});
 
     // Regresar a la pantalla que pidió el login (router.beforeEach la manda en ?volver=)
     // o, si no hay, al módulo de anuncios. Solo se aceptan rutas internas
