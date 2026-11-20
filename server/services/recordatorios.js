@@ -188,7 +188,8 @@ const avisosBajoMeta = async (hoy, destinatarios) => {
   // Publicados en los últimos 30 días y hace 3 días o más ($5 es "antes de", sin incluirla)
   const desde = F.sumarDias(hoy, -DIAS_REVISION);
   const hasta = F.sumarDias(hoy, -(DIAS_PARA_ALERTA - 1));
-  const { rows } = await db.query(CONSULTA_RESUMEN, [null, desde, null, null, hasta]);
+  // El último false: solo avisos vigentes (los archivados no generan recordatorios)
+  const { rows } = await db.query(CONSULTA_RESUMEN, [null, desde, null, null, hasta, false]);
   const bajos = rows.filter((a) => vaBajoMeta(a.confirmados, a.destinatarios, meta));
   if (bajos.length === 0) return 0;
 
@@ -293,7 +294,7 @@ const correoSemanal = async (hoy, destinatarios) => {
 const correoMensual = async (hoy, destinatarios) => {
   const desde = F.primerDiaDelMesAnterior(hoy);
   const hasta = F.primerDiaDelMes(hoy);
-  const filtros = [null, desde, null, null, hasta];
+  const filtros = [null, desde, null, null, hasta, false]; // false: sin los archivados
 
   const [{ meta }, avisos, departamentos] = await Promise.all([
     leerMeta(),

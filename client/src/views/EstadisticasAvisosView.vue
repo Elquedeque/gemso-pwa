@@ -184,6 +184,32 @@
           <p v-else class="sin-resultados">No hay avisos que coincidan con la búsqueda.</p>
         </section>
       </template>
+
+      <!-- 5. Archivados (migración 019): no cuentan en los números de arriba, pero sus
+           estadísticas se conservan. Se cargan al abrir la sección, con los mismos filtros. -->
+      <details v-if="!cargando && !errorCarga" class="card archivados" @toggle="alAbrirArchivados">
+        <summary class="card-title">
+          Avisos archivados<template v-if="archivados"> ({{ archivados.length }})</template>
+        </summary>
+        <p class="card-ayuda">No los ven los colaboradores y no cuentan en los números de arriba. Ábrelos para ver sus estadísticas o restaurarlos.</p>
+        <p v-if="cargandoArchivados" class="sin-resultados">Cargando...</p>
+        <p v-else-if="errorArchivados" class="sin-resultados">{{ errorArchivados }}</p>
+        <p v-else-if="archivados && archivados.length === 0" class="sin-resultados">No hay avisos archivados {{ textoPeriodo }}.</p>
+        <div v-else-if="archivados" class="lista">
+          <button v-for="aviso in archivados" :key="aviso.id_anu" class="fila-aviso" @click="verDetalle(aviso)">
+            <div class="fila-top">
+              <div class="fila-titulo">
+                <span class="badge badge-archivado">Archivado</span>
+                <h3>{{ aviso.titulo }}</h3>
+              </div>
+              <span class="fila-pct">{{ porcentaje(aviso.confirmados, aviso.destinatarios) }}% confirmó</span>
+            </div>
+            <p class="fila-meta">
+              Publicado el {{ formatearFecha(aviso.fecha_creacion) }} · Archivado el {{ formatearFecha(aviso.fecha_archivado) }}{{ aviso.archivado_por ? ` por ${aviso.archivado_por}` : '' }}
+            </p>
+          </button>
+        </div>
+      </details>
     </main>
 
     <SidebarMenu :is-open="isMenuOpen" @close="isMenuOpen = false" />
@@ -295,7 +321,35 @@ const cargarMeta = async () => {
   }
 };
 
-watch(() => [filtros.periodo, filtros.categoria, filtros.idDep], cargarEstadisticas);
+// Archivados: null = todavía no se abre la sección
+const archivados = ref(null);
+const cargandoArchivados = ref(false);
+const errorArchivados = ref('');
+let archivadosAbierto = false;
+
+const cargarArchivados = async () => {
+  cargandoArchivados.value = true;
+  errorArchivados.value = '';
+  const query = queryFiltros();
+  try {
+    archivados.value = await pedir(`/api/estadisticas/avisos${query ? `${query}&` : '?'}archivados=1`);
+  } catch (error) {
+    errorArchivados.value = error instanceof TypeError ? 'No se pudo conectar con el servidor' : error.message;
+  } finally {
+    cargandoArchivados.value = false;
+  }
+};
+
+const alAbrirArchivados = (e) => {
+  archivadosAbierto = e.target.open;
+  if (archivadosAbierto && archivados.value === null) cargarArchivados();
+};
+
+watch(() => [filtros.periodo, filtros.categoria, filtros.idDep], () => {
+  cargarEstadisticas();
+  if (archivadosAbierto) cargarArchivados();
+  else archivados.value = null;
+});
 
 const hayFiltros = computed(() =>
   Object.keys(FILTROS_INICIALES).some(k => filtros[k] !== FILTROS_INICIALES[k])
@@ -523,7 +577,8 @@ onMounted(() => {
 .fila-titulo {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  flex-wrap: wrap; /* en celular la etiqueta (Urgente, Archivado) pasa arriba y no aprieta el título */
+  gap: 0.35rem 0.5rem;
   min-width: 0;
 }
 
@@ -558,6 +613,16 @@ onMounted(() => {
 }
 
 .badge-urgente { background-color: #dc2626; }
+.badge-archivado { background-color: #64748b; }
+
+/* Avisos archivados (se abre y se cierra) */
+.archivados summary {
+  cursor: pointer;
+}
+
+.archivados[open] summary {
+  margin-bottom: 0.5rem;
+}
 
 /* Estados de carga, error y vacío */
 .estado-box {

@@ -32,6 +32,7 @@
         <span class="section-label">{{ aviso.urgente ? 'Aviso Urgente' : 'Aviso' }}</span>
         <h1 class="aviso-title">{{ aviso.titulo }}</h1>
         <p class="aviso-origen">{{ aviso.origen }}</p>
+        <p v-if="aviso.editado" class="aviso-editado">{{ aviso.editado }}</p>
       </header>
 
       <!-- Solo para quien publica avisos (en la beta, Talento y Cultura) -->
@@ -41,6 +42,8 @@
         :destacado="aviso.destacado"
         @cambio="aviso.destacado = $event"
       />
+      <!-- Al archivarlo ya no se puede ver aquí: se regresa a Mis Avisos -->
+      <AccionesAviso v-if="puedePublicar" :id-anu="aviso.id" @cambio="goBack" />
 
       <!-- Imagen del aviso (si tiene) -->
       <img v-if="imagenUrl" :src="imagenUrl" :alt="`Imagen del aviso: ${aviso.titulo}`" class="aviso-imagen" />
@@ -139,6 +142,7 @@ import { apiFetch } from '../api';
 import { quitarDeCampana } from '../utils/campana';
 import { usuarioTienePermiso } from '../utils/estadisticas';
 import BotonDestacado from '../components/BotonDestacado.vue';
+import AccionesAviso from '../components/AccionesAviso.vue';
 
 // Quien publica avisos puede destacar o quitar este aviso del carrusel
 const puedePublicar = usuarioTienePermiso('publicar_avisos');
@@ -177,6 +181,10 @@ const mapearAviso = (a) => ({
     a.departamento_destino ? `Para: ${a.departamento_destino}` : null,
     formatearFecha(a.fecha_creacion)
   ].filter(Boolean).join(' · '),
+  // Migración 019: si TyC lo corrigió después de publicarlo
+  editado: a.fecha_edicion
+    ? `Editado el ${formatearFecha(a.fecha_edicion)}${a.editado_por ? ` por ${a.editado_por}` : ''}`
+    : '',
   leido: a.leido,
   // Cada salto de línea del contenido se muestra como un párrafo
   contenido: a.contenido.split(/\n+/).map(p => p.trim()).filter(Boolean),
@@ -350,6 +358,13 @@ onMounted(() => {
   font-size: 1rem;
   color: var(--text-secondary, #475569);
   margin: 0;
+}
+
+.aviso-editado {
+  font-size: 0.8rem;
+  font-style: italic;
+  color: var(--text-secondary, #64748b);
+  margin: 0.25rem 0 0;
 }
 
 /* Cuerpo de Texto */

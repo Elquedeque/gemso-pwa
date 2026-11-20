@@ -19,6 +19,9 @@ const db = require('../config/db');
 // Parámetros (NULL = sin filtro):
 //   $1 = id del aviso   $2 = desde (fecha)   $3 = categoría   $4 = id del departamento
 //   $5 = hasta (fecha, sin incluirla; la usa el resumen mensual de services/recordatorios.js)
+//   $6 = archivados (migración 019): NULL o FALSE = solo vigentes, TRUE = solo archivados.
+//        Con $1 (un aviso en específico) no importa: sus números se ven aunque esté archivado.
+//        Así los archivados no cuentan en los indicadores por departamento ni en los recordatorios.
 const CTE_DESTINATARIOS = `
   WITH destinatarios AS (
     SELECT
@@ -50,6 +53,7 @@ const CTE_DESTINATARIOS = `
       AND ($5::date IS NULL OR a.fecha_creacion < $5::date)
       AND ($3::text IS NULL OR a.categoria = $3)
       AND ($4::int IS NULL OR u.id_departamento = $4)
+      AND ($1::int IS NOT NULL OR (a.fecha_archivado IS NOT NULL) = COALESCE($6::boolean, FALSE))
   )
 `;
 
@@ -64,6 +68,9 @@ const CONSULTA_RESUMEN = `
     a.urgente,
     a.destacado,
     a.fecha_creacion,
+    a.fecha_edicion,
+    a.fecha_archivado,
+    ar.nombre_completo AS archivado_por,
     au.nombre_completo AS autor,
     CASE
       WHEN dd.nombre IS NOT NULL THEN dd.nombre
@@ -77,12 +84,14 @@ const CONSULTA_RESUMEN = `
   JOIN usuarios au ON au.id_usu = a.id_autor
   LEFT JOIN departamentos dd ON dd.id_dep = a.id_dep_destino
   LEFT JOIN usuarios ud ON ud.id_usu = a.id_usu_destino
+  LEFT JOIN usuarios ar ON ar.id_usu = a.archivado_por
   LEFT JOIN destinatarios de ON de.id_anu = a.id_anu
   WHERE ($1::int IS NULL OR a.id_anu = $1)
     AND ($2::date IS NULL OR a.fecha_creacion >= $2::date)
     AND ($5::date IS NULL OR a.fecha_creacion < $5::date)
     AND ($3::text IS NULL OR a.categoria = $3)
-  GROUP BY a.id_anu, au.nombre_completo, dd.nombre, ud.nombre_completo
+    AND ($1::int IS NOT NULL OR (a.fecha_archivado IS NOT NULL) = COALESCE($6::boolean, FALSE))
+  GROUP BY a.id_anu, au.nombre_completo, dd.nombre, ud.nombre_completo, ar.nombre_completo
   HAVING $4::int IS NULL OR COUNT(de.id_usu) > 0
   ORDER BY a.fecha_creacion DESC
 `;

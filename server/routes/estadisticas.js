@@ -10,6 +10,8 @@
 //   ?desde=AAAA-MM-DD   solo avisos publicados desde esa fecha
 //   ?categoria=Texto    solo avisos de esa categoría
 //   ?id_dep=N           solo los destinatarios de ese departamento
+//   ?archivados=1       (solo /avisos) los avisos archivados en lugar de los vigentes (migración 019).
+//                       Los indicadores por departamento siempre usan los vigentes.
 //
 // Las consultas están en services/estadisticas.js (también las usan los recordatorios).
 const express = require('express');
@@ -135,7 +137,8 @@ router.get('/avisos', async (req, res) => {
   if (filtros.error) return res.status(400).json({ error: filtros.error });
 
   try {
-    const result = await db.query(CONSULTA_RESUMEN, [null, ...filtros.valores, null]);
+    const archivados = req.query.archivados === '1';
+    const result = await db.query(CONSULTA_RESUMEN, [null, ...filtros.valores, null, archivados]);
     res.json(result.rows);
   } catch (error) {
     console.error('Error al obtener estadísticas de avisos:', error);
@@ -149,7 +152,7 @@ router.get('/departamentos', async (req, res) => {
   if (filtros.error) return res.status(400).json({ error: filtros.error });
 
   try {
-    const result = await db.query(CONSULTA_DEPARTAMENTOS, [null, ...filtros.valores, null]);
+    const result = await db.query(CONSULTA_DEPARTAMENTOS, [null, ...filtros.valores, null, false]);
     res.json(result.rows);
   } catch (error) {
     console.error('Error al obtener estadísticas por departamento:', error);
@@ -164,7 +167,7 @@ router.get('/avisos/:id', async (req, res) => {
     return res.status(400).json({ error: 'Aviso inválido' });
   }
 
-  const sinFiltros = [idAnu, null, null, null, null];
+  const sinFiltros = [idAnu, null, null, null, null, null];
   try {
     const resumen = await db.query(CONSULTA_RESUMEN, sinFiltros);
     if (resumen.rows.length === 0) {

@@ -30,15 +30,26 @@
           <p class="aviso-meta">
             {{ detalle.autor }} · Para: {{ detalle.destino }} · {{ formatearFecha(detalle.fecha_creacion) }}
           </p>
+          <p v-if="detalle.fecha_edicion" class="aviso-meta">Editado el {{ formatearFecha(detalle.fecha_edicion) }}</p>
+          <p v-if="detalle.fecha_archivado" class="aviso-meta">
+            Archivado el {{ formatearFecha(detalle.fecha_archivado) }}{{ detalle.archivado_por ? ` por ${detalle.archivado_por}` : '' }}
+          </p>
         </header>
 
         <!-- Aquí también se pueden quitar los destacados dirigidos a otros departamentos,
              que el autor no ve en Mis Avisos -->
         <BotonDestacado
-          v-if="puedePublicar"
+          v-if="puedePublicar && !detalle.fecha_archivado"
           :id-anu="detalle.id_anu"
           :destacado="detalle.destacado"
           @cambio="detalle.destacado = $event"
+        />
+        <!-- Editar, archivar o restaurar (migración 019). Archivado se sigue viendo aquí -->
+        <AccionesAviso
+          v-if="puedePublicar"
+          :id-anu="detalle.id_anu"
+          :archivado="Boolean(detalle.fecha_archivado)"
+          @cambio="cambioArchivado"
         />
 
         <!-- Filtro por departamento (solo si el aviso llegó a más de uno) -->
@@ -160,6 +171,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { apiFetch } from '../api';
 import { porcentaje, ESTADOS, formatearFecha, formatearFechaHora, META_POR_DEFECTO, usuarioTienePermiso } from '../utils/estadisticas';
 import BotonDestacado from '../components/BotonDestacado.vue';
+import AccionesAviso from '../components/AccionesAviso.vue';
 
 // Ver estadísticas no basta para destacar: hace falta el permiso de publicar
 const puedePublicar = usuarioTienePermiso('publicar_avisos');
@@ -217,6 +229,15 @@ const cargarDetalle = async () => {
   } finally {
     cargando.value = false;
   }
+};
+
+// Al archivar sale del carrusel; al restaurar se recarga para traer las fechas del servidor
+const cambioArchivado = (archivado) => {
+  if (archivado) {
+    detalle.value.destacado = false;
+    detalle.value.fecha_archivado = new Date().toISOString();
+  }
+  cargarDetalle();
 };
 
 // Personas del departamento elegido (o todas)

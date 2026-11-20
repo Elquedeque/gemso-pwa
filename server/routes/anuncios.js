@@ -11,6 +11,15 @@
 //   GET  /api/anuncios/:id/imagen     Ver la imagen
 //   POST /api/anuncios/:id/adjuntos   Subir un adjunto (publicar_avisos, máximo 5)
 //   GET  /api/anuncios/:id/adjuntos/:idAdj  Ver o descargar (?descargar=1) un adjunto
+//
+// Editar y archivar (migración 019, permiso publicar_avisos; todo el equipo, no solo el autor):
+//   GET    /api/anuncios/:id/edicion           Datos para el formulario de edición (también archivados; no registra vista)
+//   PUT    /api/anuncios/:id                   Corregir título, contenido, categoría y urgente. El destino no se cambia
+//   DELETE /api/anuncios/:id/imagen            Quitar la imagen
+//   DELETE /api/anuncios/:id/adjuntos/:idAdj   Quitar un adjunto
+//   PUT    /api/anuncios/:id/archivado         Archivar o restaurar: { "archivado": true }
+// Subir imagen o adjunto con ?edicion=1 también lo marca como editado (desde Crear Aviso no se marca).
+// Las confirmaciones de lectura se conservan al editar; el detalle muestra "Editado el …".
 const path = require('path');
 const express = require('express');
 const db = require('../config/db');
@@ -38,10 +47,13 @@ const CATEGORIAS_AVISO = ['Corporativo', 'Autofest 2026', 'Talento y Cultura', '
 //   - Los avisos generales (sin departamento ni usuario destino)
 //   - Los avisos para su departamento ($2)
 //   - Los avisos dirigidos a él directamente ($1)
+// En los tres casos, solo si no está archivado (migración 019). Así un aviso archivado sale
+// a la vez de la lista, el carrusel, la campana, el detalle y la confirmación de lectura.
 const FILTRO_VISIBLES = `
-  ((a.id_dep_destino IS NULL AND a.id_usu_destino IS NULL)
-   OR a.id_dep_destino = $2
-   OR a.id_usu_destino = $1)
+  (a.fecha_archivado IS NULL
+   AND ((a.id_dep_destino IS NULL AND a.id_usu_destino IS NULL)
+        OR a.id_dep_destino = $2
+        OR a.id_usu_destino = $1))
 `;
 
 // Guardar la primera vez que un usuario ve un aviso (tabla anuncios_vistos, migración 006)
@@ -208,10 +220,13 @@ router.get('/:id', autenticar, async (req, res) => {
         a.id_usu_destino,
         u.nombre_completo AS autor,
         d.nombre AS departamento_destino,
+        a.fecha_edicion,
+        ed.nombre_completo AS editado_por,
         EXISTS (SELECT 1 FROM anuncios_leidos l WHERE l.id_anu = a.id_anu AND l.id_usu = $1) AS leido
       FROM anuncios a
       INNER JOIN usuarios u ON a.id_autor = u.id_usu
       LEFT JOIN departamentos d ON a.id_dep_destino = d.id_dep
+      LEFT JOIN usuarios ed ON ed.id_usu = a.editado_por
       WHERE a.id_anu = $3 AND ${FILTRO_VISIBLES};
     `;
     const result = await db.query(query, [idUsu, id_departamento, idAnu]);
@@ -238,6 +253,23 @@ router.get('/:id', autenticar, async (req, res) => {
   }
 });
 
+// Revisar los textos de un aviso (los usan publicar y editar). Regresa { error } o los valores limpios.
+// El largo del título lo revisa la BD (varchar 200, error 22001).
+const leerTextosAviso = (body = {}) => {
+  const { titulo, contenido, categoria, urgente } = body;
+  const esTexto = (v) => typeof v === 'string' && v.trim() !== '';
+  if (!esTexto(titulo) || !esTexto(contenido) || !esTexto(categoria)) {
+    return { error: 'Título, contenido y categoría son obligatorios' };
+  }
+  if (!CATEGORIAS_AVISO.includes(categoria.trim())) {
+    return { error: 'Categoría inválida' };
+  }
+  if (urgente !== undefined && typeof urgente !== 'boolean') {
+    return { error: 'El campo urgente debe ser verdadero o falso' };
+  }
+  return { titulo: titulo.trim(), contenido: contenido.trim(), categoria: categoria.trim(), urgente: urgente === true };
+};
+
 // Endpoint para publicar un anuncio
 // El autor siempre es el usuario de la sesión, no se acepta id_autor desde el cliente.
 // Destino opcional: un departamento (id_dep_destino) o una persona (id_usu_destino).
@@ -249,16 +281,8 @@ router.post('/', autenticar, async (req, res) => {
   const idDepDestino = idOpcional(req.body.id_dep_destino);
   const idUsuDestino = idOpcional(req.body.id_usu_destino);
 
-  const esTexto = (v) => typeof v === 'string' && v.trim() !== '';
-  if (!esTexto(titulo) || !esTexto(contenido) || !esTexto(categoria)) {
-    return res.status(400).json({ error: 'Título, contenido y categoría son obligatorios' });
-  }
-  if (!CATEGORIAS_AVISO.includes(categoria.trim())) {
-    return res.status(400).json({ error: 'Categoría inválida' });
-  }
-  if (urgente !== undefined && typeof urgente !== 'boolean') {
-    return res.status(400).json({ error: 'El campo urgente debe ser verdadero o falso' });
-  }
+  const textos = leerTextosAviso(req.body);
+  if (textos.error) return res.status(400).json({ error: textos.error });
   if (destacado !== undefined && typeof destacado !== 'boolean') {
     return res.status(400).json({ error: 'El campo destacado debe ser verdadero o falso' });
   }
@@ -293,10 +317,10 @@ router.post('/', autenticar, async (req, res) => {
       RETURNING id_anu, titulo, contenido, categoria, urgente, destacado, id_autor, id_dep_destino, id_usu_destino, fecha_creacion;
     `;
     const values = [
-      titulo.trim(),
-      contenido.trim(),
-      categoria.trim(),
-      urgente === true,
+      textos.titulo,
+      textos.contenido,
+      textos.categoria,
+      textos.urgente,
       destacado === true,
       idAutor,
       idDepDestino,
@@ -385,17 +409,32 @@ const idDe = (valor) => {
   return Number.isInteger(n) && n > 0 ? n : null;
 };
 
+// Un aviso archivado no se edita: primero se restaura (migración 019)
+const MENSAJE_ARCHIVADO = 'El aviso está archivado. Restáuralo para poder editarlo.';
+
+// Guardar quién y cuándo editó el aviso por última vez
+const marcarEditado = (idAnu, idUsu, cliente = db) =>
+  cliente.query(
+    'UPDATE anuncios SET fecha_edicion = CURRENT_TIMESTAMP, editado_por = $2 WHERE id_anu = $1',
+    [idAnu, idUsu]
+  );
+
+// Los archivos subidos desde la pantalla de edición llevan ?edicion=1
+const vieneDeEdicion = (req) => req.query.edicion === '1';
+
 // Subir o reemplazar la imagen del aviso
 router.post('/:id/imagen', autenticar, requierePermiso(PERMISO_PUBLICAR_AVISOS), recibirArchivo('imagen'), async (req, res) => {
   const idAnu = idDe(req.params.id);
   if (!idAnu) return res.status(400).json({ error: 'Aviso inválido' });
   try {
-    const actual = await db.query('SELECT imagen FROM anuncios WHERE id_anu = $1', [idAnu]);
+    const actual = await db.query('SELECT imagen, fecha_archivado FROM anuncios WHERE id_anu = $1', [idAnu]);
     if (actual.rows.length === 0) return res.status(404).json({ error: 'Aviso no encontrado' });
+    if (actual.rows[0].fecha_archivado) return res.status(400).json({ error: MENSAJE_ARCHIVADO });
 
     const ext = almacenamiento.validar(req.body, nombreDelArchivo(req), 'imagen');
     const clave = await almacenamiento.guardar(req.body, `avisos/${idAnu}`, ext);
     await db.query('UPDATE anuncios SET imagen = $1 WHERE id_anu = $2', [clave, idAnu]);
+    if (vieneDeEdicion(req)) await marcarEditado(idAnu, req.usuario.id_usu);
     await almacenamiento.borrar(actual.rows[0].imagen); // la anterior, si había
     res.status(201).json({ message: 'Imagen guardada', id_anu: idAnu, tiene_imagen: true });
   } catch (error) {
@@ -427,10 +466,12 @@ router.post('/:id/adjuntos', autenticar, requierePermiso(PERMISO_PUBLICAR_AVISOS
   try {
     const conteo = await db.query(
       `SELECT (SELECT COUNT(*) FROM anuncios WHERE id_anu = $1)::int AS existe,
+              (SELECT COUNT(*) FROM anuncios WHERE id_anu = $1 AND fecha_archivado IS NOT NULL)::int AS archivado,
               (SELECT COUNT(*) FROM anuncios_adj WHERE id_anu = $1)::int AS adjuntos`,
       [idAnu]
     );
     if (!conteo.rows[0].existe) return res.status(404).json({ error: 'Aviso no encontrado' });
+    if (conteo.rows[0].archivado) return res.status(400).json({ error: MENSAJE_ARCHIVADO });
     if (conteo.rows[0].adjuntos >= MAX_ADJUNTOS) {
       return res.status(400).json({ error: `Un aviso puede tener máximo ${MAX_ADJUNTOS} adjuntos` });
     }
@@ -443,6 +484,7 @@ router.post('/:id/adjuntos', autenticar, requierePermiso(PERMISO_PUBLICAR_AVISOS
        RETURNING id_anu_adj, nombre_archivo, tipo_archivo, tamano_bytes`,
       [idAnu, nombre, ext, clave, req.body.length]
     );
+    if (vieneDeEdicion(req)) await marcarEditado(idAnu, req.usuario.id_usu);
     res.status(201).json({ message: 'Adjunto guardado', adjunto: result.rows[0] });
   } catch (error) {
     if (error instanceof almacenamiento.ErrorArchivo) return res.status(400).json({ error: error.message });
@@ -485,19 +527,191 @@ router.put('/:id/destacado', autenticar, requierePermiso(PERMISO_PUBLICAR_AVISOS
   }
 
   try {
+    const actual = await db.query('SELECT fecha_archivado FROM anuncios WHERE id_anu = $1', [idAnu]);
+    if (actual.rows.length === 0) {
+      return res.status(404).json({ error: 'Aviso no encontrado' });
+    }
+    if (actual.rows[0].fecha_archivado) {
+      return res.status(400).json({ error: 'El aviso está archivado. Restáuralo para destacarlo.' });
+    }
     const result = await db.query(
       'UPDATE anuncios SET destacado = $1 WHERE id_anu = $2 RETURNING id_anu, destacado',
       [destacado, idAnu]
     );
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Aviso no encontrado' });
-    }
     res.json({
       message: destacado ? 'El aviso ya aparece en el carrusel' : 'El aviso ya no aparece en el carrusel',
       ...result.rows[0]
     });
   } catch (error) {
     console.error('Error al cambiar destacado:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// ── Editar y archivar (migración 019) ─────────────────────────────────
+// Todo con permiso publicar_avisos: el equipo de TyC administra todos los avisos, también los
+// dirigidos a otros departamentos (igual que destacar). No se revisa la regla de visibilidad.
+const soloPublicadores = [autenticar, requierePermiso(PERMISO_PUBLICAR_AVISOS)];
+
+// Datos para el formulario de edición. No registra vista, para no alterar las estadísticas.
+router.get('/:id/edicion', soloPublicadores, async (req, res) => {
+  const idAnu = idDe(req.params.id);
+  if (!idAnu) return res.status(400).json({ error: 'Aviso inválido' });
+  try {
+    const result = await db.query(
+      `SELECT a.id_anu, a.titulo, a.contenido, a.categoria, a.urgente, a.destacado,
+              a.imagen IS NOT NULL AS tiene_imagen, a.fecha_creacion, a.fecha_edicion, a.fecha_archivado,
+              a.id_dep_destino, a.id_usu_destino,
+              d.nombre AS departamento_destino, ud.nombre_completo AS persona_destino
+       FROM anuncios a
+       LEFT JOIN departamentos d ON d.id_dep = a.id_dep_destino
+       LEFT JOIN usuarios ud ON ud.id_usu = a.id_usu_destino
+       WHERE a.id_anu = $1`,
+      [idAnu]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Aviso no encontrado' });
+
+    const adjuntos = await db.query(
+      `SELECT id_anu_adj, nombre_archivo, tipo_archivo, tamano_bytes
+       FROM anuncios_adj WHERE id_anu = $1 ORDER BY id_anu_adj`,
+      [idAnu]
+    );
+    res.json({ ...result.rows[0], adjuntos: adjuntos.rows });
+  } catch (error) {
+    console.error('Error al obtener el aviso para editar:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// Corregir los textos. El destino no se acepta aunque venga en el cuerpo: cambiaría quién
+// lo ve y sus estadísticas. Solo se marca como editado si algo cambió de verdad.
+router.put('/:id', soloPublicadores, async (req, res) => {
+  const idAnu = idDe(req.params.id);
+  if (!idAnu) return res.status(400).json({ error: 'Aviso inválido' });
+
+  const textos = leerTextosAviso(req.body);
+  if (textos.error) return res.status(400).json({ error: textos.error });
+
+  try {
+    const actual = await db.query(
+      'SELECT titulo, contenido, categoria, urgente, fecha_archivado FROM anuncios WHERE id_anu = $1',
+      [idAnu]
+    );
+    if (actual.rows.length === 0) return res.status(404).json({ error: 'Aviso no encontrado' });
+    const antes = actual.rows[0];
+    if (antes.fecha_archivado) return res.status(400).json({ error: MENSAJE_ARCHIVADO });
+
+    const cambio = ['titulo', 'contenido', 'categoria'].some((c) => antes[c] !== textos[c])
+      || (antes.urgente === true) !== textos.urgente;
+
+    if (cambio) {
+      await db.query(
+        `UPDATE anuncios
+         SET titulo = $1, contenido = $2, categoria = $3, urgente = $4,
+             fecha_edicion = CURRENT_TIMESTAMP, editado_por = $5
+         WHERE id_anu = $6`,
+        [textos.titulo, textos.contenido, textos.categoria, textos.urgente, req.usuario.id_usu, idAnu]
+      );
+    }
+    res.json({ message: cambio ? 'Cambios guardados' : 'No hubo cambios', id_anu: idAnu, cambio });
+  } catch (error) {
+    if (error.code === '22001') {
+      return res.status(400).json({ error: 'Alguno de los campos excede la longitud permitida' });
+    }
+    console.error('Error al editar el aviso:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// Quitar la imagen: primero la BD y después el archivo. Si el archivo no se pudiera borrar,
+// el aviso ya no lo usa y solo queda un archivo suelto en la carpeta.
+router.delete('/:id/imagen', soloPublicadores, async (req, res) => {
+  const idAnu = idDe(req.params.id);
+  if (!idAnu) return res.status(400).json({ error: 'Aviso inválido' });
+  try {
+    const actual = await db.query('SELECT imagen, fecha_archivado FROM anuncios WHERE id_anu = $1', [idAnu]);
+    if (actual.rows.length === 0) return res.status(404).json({ error: 'Aviso no encontrado' });
+    if (actual.rows[0].fecha_archivado) return res.status(400).json({ error: MENSAJE_ARCHIVADO });
+    if (!actual.rows[0].imagen) return res.status(404).json({ error: 'El aviso no tiene imagen' });
+
+    await db.query(
+      `UPDATE anuncios SET imagen = NULL, fecha_edicion = CURRENT_TIMESTAMP, editado_por = $2
+       WHERE id_anu = $1`,
+      [idAnu, req.usuario.id_usu]
+    );
+    await almacenamiento.borrar(actual.rows[0].imagen);
+    res.json({ message: 'Imagen quitada', id_anu: idAnu, tiene_imagen: false });
+  } catch (error) {
+    console.error('Error al quitar la imagen:', error);
+    res.status(500).json({ error: 'No se pudo quitar la imagen' });
+  }
+});
+
+// Quitar un adjunto (mismo orden: BD y después archivo)
+router.delete('/:id/adjuntos/:idAdj', soloPublicadores, async (req, res) => {
+  const idAnu = idDe(req.params.id);
+  const idAdj = idDe(req.params.idAdj);
+  if (!idAnu || !idAdj) return res.status(400).json({ error: 'Adjunto inválido' });
+  try {
+    const aviso = await db.query('SELECT fecha_archivado FROM anuncios WHERE id_anu = $1', [idAnu]);
+    if (aviso.rows.length === 0) return res.status(404).json({ error: 'Aviso no encontrado' });
+    if (aviso.rows[0].fecha_archivado) return res.status(400).json({ error: MENSAJE_ARCHIVADO });
+
+    const borrado = await db.transaccion(async (cliente) => {
+      const result = await cliente.query(
+        'DELETE FROM anuncios_adj WHERE id_anu_adj = $1 AND id_anu = $2 RETURNING url_archivo',
+        [idAdj, idAnu]
+      );
+      if (result.rows.length === 0) return null;
+      await marcarEditado(idAnu, req.usuario.id_usu, cliente);
+      return result.rows[0];
+    });
+    if (!borrado) return res.status(404).json({ error: 'Adjunto no encontrado' });
+
+    await almacenamiento.borrar(borrado.url_archivo);
+    res.json({ message: 'Adjunto quitado', id_anu_adj: idAdj });
+  } catch (error) {
+    console.error('Error al quitar el adjunto:', error);
+    res.status(500).json({ error: 'No se pudo quitar el adjunto' });
+  }
+});
+
+// Archivar o restaurar: { "archivado": true }
+// Al archivar también sale del carrusel (destacado = false); al restaurar no vuelve solo,
+// para que nadie se sorprenda con un aviso viejo en la pantalla de inicio.
+// No se borran confirmaciones, vistas ni archivos.
+router.put('/:id/archivado', soloPublicadores, async (req, res) => {
+  const idAnu = idDe(req.params.id);
+  const archivado = req.body?.archivado;
+  if (!idAnu) return res.status(400).json({ error: 'Aviso inválido' });
+  if (typeof archivado !== 'boolean') {
+    return res.status(400).json({ error: 'El campo archivado debe ser verdadero o falso' });
+  }
+  try {
+    const result = await db.query(
+      archivado
+        ? `UPDATE anuncios
+           SET fecha_archivado = COALESCE(fecha_archivado, CURRENT_TIMESTAMP),
+               archivado_por = COALESCE(archivado_por, $2), destacado = FALSE
+           WHERE id_anu = $1
+           RETURNING id_anu, fecha_archivado, destacado`
+        // "$2::int IS NOT NULL" siempre es verdadero: está para que las dos consultas usen los
+        // mismos parámetros (PostgreSQL rechaza un parámetro que la consulta no menciona)
+        : `UPDATE anuncios SET fecha_archivado = NULL, archivado_por = NULL
+           WHERE id_anu = $1 AND $2::int IS NOT NULL
+           RETURNING id_anu, fecha_archivado, destacado`,
+      [idAnu, req.usuario.id_usu]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Aviso no encontrado' });
+    res.json({
+      message: archivado
+        ? 'El aviso se archivó: los colaboradores ya no lo ven'
+        : 'El aviso se restauró: los colaboradores lo vuelven a ver',
+      archivado,
+      ...result.rows[0]
+    });
+  } catch (error) {
+    console.error('Error al archivar o restaurar el aviso:', error);
     res.status(500).json({ error: 'Error interno del servidor' });
   }
 });

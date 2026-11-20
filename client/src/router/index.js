@@ -85,6 +85,13 @@ const routes = [
     beforeEnter: soloConPermiso('publicar_avisos')
   },
   {
+    // Editar un aviso ya publicado (migración 019)
+    path: '/avisos/:id/editar',
+    name: 'editar-aviso',
+    component: () => import('../views/EditarAvisoView.vue'),
+    beforeEnter: soloConPermiso('publicar_avisos')
+  },
+  {
     path: '/estadisticas',
     name: 'estadisticas',
     component: () => import('../views/EstadisticasAvisosView.vue'),
