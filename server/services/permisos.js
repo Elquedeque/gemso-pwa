@@ -18,6 +18,10 @@ const PERMISOS_TYC = [
   PERMISO_GESTIONAR_COLABORADORES
 ];
 
+// Nombre del departamento de Talento y Cultura. El código lo reconoce por su nombre,
+// por eso routes/departamentos.js no deja renombrarlo ni borrarlo.
+const DEPARTAMENTO_TYC = 'Talento y Cultura';
+
 // Obtener los permisos del usuario, por ejemplo ['publicar_avisos']
 const obtenerPermisos = async (idUsu) => {
   const result = await db.query(
@@ -41,6 +45,7 @@ module.exports = {
   PERMISO_INVITAR_COLABORADORES,
   PERMISO_GESTIONAR_COLABORADORES,
   PERMISOS_TYC,
+  DEPARTAMENTO_TYC,
   obtenerPermisos,
   tienePermiso
 };

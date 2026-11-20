@@ -17,7 +17,7 @@ const express = require('express');
 const db = require('../config/db');
 const autenticar = require('../middleware/autenticar');
 const requierePermiso = require('../middleware/requierePermiso');
-const { PERMISO_GESTIONAR_COLABORADORES, PERMISOS_TYC } = require('../services/permisos');
+const { PERMISO_GESTIONAR_COLABORADORES, PERMISOS_TYC, DEPARTAMENTO_TYC } = require('../services/permisos');
 const { fechaLocal } = require('../services/fechas');
 const {
   normalizarCorreo,
@@ -32,8 +32,6 @@ const restablecimientos = require('../services/restablecimientos');
 
 const router = express.Router();
 router.use(autenticar, requierePermiso(PERMISO_GESTIONAR_COLABORADORES));
-
-const DEPARTAMENTO_TYC = 'Talento y Cultura';
 
 // Edad mínima para trabajar en México (Ley Federal del Trabajo)
 const EDAD_MINIMA_INGRESO = 15;
