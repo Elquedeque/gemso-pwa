@@ -456,9 +456,12 @@ onUnmounted(() => {
 }
 
 /* Accesos Rápidos */
+/* minmax(0, 1fr) y no 1fr: con 1fr la columna no baja del ancho de su texto y en
+   celular la tarjeta de Documentos se salía de la pantalla. Así el subtítulo se corta
+   con "…" (.nav-sub) en lugar de empujar la columna. */
 .quick-nav {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.75rem;
 }
 
@@ -474,6 +477,7 @@ onUnmounted(() => {
   text-align: left;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
   transition: transform 0.15s ease, border-color 0.15s ease;
+  min-width: 0;
 }
 
 .nav-card:active {

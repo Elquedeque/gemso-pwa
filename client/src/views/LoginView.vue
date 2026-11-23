@@ -143,7 +143,7 @@ const goRegister = () => {
 /* Contenedor Principal ocupando toda la pantalla */
 .login-container {
   min-height: 100vh;
-  width: 100vw;
+  width: 100%; /* no 100vw: incluye la barra de desplazamiento y se sale de lado */
   display: flex;
   justify-content: center;
   align-items: center;
