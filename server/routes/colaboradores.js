@@ -111,7 +111,8 @@ router.get('/', async (req, res) => {
 router.get('/opciones', async (req, res) => {
   try {
     const [departamentos, sucursales, empresas, gerentes] = await Promise.all([
-      db.query('SELECT id_dep, nombre FROM departamentos ORDER BY nombre'),
+      // Todos, con "activo": la pantalla ofrece solo los activos más el que ya tiene la persona
+      db.query('SELECT id_dep, nombre, (fecha_desactivado IS NULL) AS activo FROM departamentos ORDER BY nombre'),
       db.query('SELECT id_suc, nombre FROM sucursales ORDER BY nombre'),
       db.query('SELECT id_emp, nombre FROM empresas ORDER BY nombre'),
       db.query('SELECT id_usu, nombre_completo FROM usuarios WHERE activo ORDER BY nombre_completo')
@@ -194,6 +195,16 @@ router.put('/:id', async (req, res) => {
       // 3. Validaciones contra la BD
       if (idUsu === req.usuario.id_usu && datos.id_departamento !== antes.id_departamento) {
         throw new ErrorValidacion('No puedes cambiar tu propio departamento. Pídeselo a otra persona de Talento y Cultura.');
+      }
+      // Se puede quedar en un departamento desactivado, pero no mover a alguien a uno (migración 020)
+      if (datos.id_departamento !== antes.id_departamento) {
+        const destino = await cliente.query(
+          'SELECT (fecha_desactivado IS NULL) AS activo FROM departamentos WHERE id_dep = $1',
+          [datos.id_departamento]
+        );
+        if (destino.rows.length && !destino.rows[0].activo) {
+          throw new ErrorValidacion('Ese departamento está desactivado. Actívalo en Departamentos o elige otro.');
+        }
       }
       const correoUsado = await cliente.query(
         'SELECT 1 FROM usuarios WHERE LOWER(correo) = $1 AND id_usu <> $2',

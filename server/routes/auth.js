@@ -116,9 +116,15 @@ router.post('/usuarios', async (req, res) => {
       }
       correo = invitacion.correo;
     } else {
-      const dep = await db.query('SELECT solo_por_invitacion FROM departamentos WHERE id_dep = $1', [idDepartamento]);
+      const dep = await db.query(
+        'SELECT solo_por_invitacion, (fecha_desactivado IS NULL) AS activo FROM departamentos WHERE id_dep = $1',
+        [idDepartamento]
+      );
       if (dep.rows.length === 0) {
         return res.status(400).json({ error: 'El departamento no existe' });
+      }
+      if (!dep.rows[0].activo) {
+        return res.status(400).json({ error: 'Ese departamento ya no está disponible. Elige otro.' });
       }
       if (dep.rows[0].solo_por_invitacion) {
         return res.status(403).json({ error: 'A este departamento solo se entra con una invitación de Talento y Cultura' });
@@ -145,6 +151,8 @@ router.post('/usuarios', async (req, res) => {
       WITH usada AS (
         UPDATE invitaciones i SET fecha_uso = NOW()
         WHERE $4::char(64) IS NOT NULL AND i.token_hash = $4 AND ${SQL_PENDIENTE}
+          AND EXISTS (SELECT 1 FROM departamentos dd
+                      WHERE dd.id_dep = i.id_departamento AND dd.fecha_desactivado IS NULL)
         RETURNING i.correo, i.id_departamento
       ),
       origen AS (
@@ -153,6 +161,7 @@ router.post('/usuarios', async (req, res) => {
         SELECT $11::varchar, d.id_dep
         FROM departamentos d
         WHERE $4::char(64) IS NULL AND d.id_dep = $12::int AND NOT d.solo_por_invitacion
+          AND d.fecha_desactivado IS NULL
       ),
       nuevo AS (
         INSERT INTO usuarios (

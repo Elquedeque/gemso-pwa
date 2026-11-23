@@ -1,8 +1,10 @@
 // Rutas de Departamentos
-//   GET    /api/departamentos           Catálogo público (lo usan el registro y la pantalla de Invitaciones)
+//   GET    /api/departamentos           Catálogo público de los activos (registro, Invitaciones, Crear Aviso).
+//                                       Con ?incluir_inactivos=1 también los desactivados (filtro de Colaboradores)
 //   GET    /api/departamentos/gestion   Lista con cuántos colaboradores, invitaciones y avisos tiene cada uno
 //   POST   /api/departamentos           Crear: { "nombre": "Refacciones", "solo_por_invitacion": false }
 //   PUT    /api/departamentos/:id       Renombrar o cambiar si es solo por invitación (mismo cuerpo)
+//   PUT    /api/departamentos/:id/activo  Desactivar o volver a activar: { "activo": false } (migración 020)
 //   DELETE /api/departamentos/:id       Borrar, solo si nadie lo usa
 //
 // Reglas:
@@ -14,12 +16,17 @@
 //   - Un departamento con colaboradores (activos o desactivados), invitaciones o avisos no se borra,
 //     para no perder a quién pertenecían. Primero hay que mover a esas personas.
 //   - solo_por_invitacion: el registro abierto no lo muestra (migración 012).
+//   - Desactivar (migración 020) es la salida para uno que ya no se usa pero no se puede borrar:
+//     deja de aparecer al registrarse, al invitar, al publicar un aviso y al mover a un colaborador.
+//     Sus colaboradores, avisos y estadísticas no cambian. Sus invitaciones pendientes se cancelan.
+//     Talento y Cultura no se puede desactivar.
 const express = require('express');
 const db = require('../config/db');
 const autenticar = require('../middleware/autenticar');
 const requierePermiso = require('../middleware/requierePermiso');
 const { PERMISO_GESTIONAR_COLABORADORES, DEPARTAMENTO_TYC } = require('../services/permisos');
 const { limpiarTexto, idValido } = require('../services/validaciones');
+const { SQL_PENDIENTE } = require('../services/invitaciones');
 
 const router = express.Router();
 const soloTyC = [autenticar, requierePermiso(PERMISO_GESTIONAR_COLABORADORES)];
@@ -60,9 +67,18 @@ const unirConY = (partes) =>
   partes.length > 1 ? `${partes.slice(0, -1).join(', ')} y ${partes[partes.length - 1]}` : partes.join('');
 
 // ── Catálogo público ──────────────────────────────────────────────────
+// Por defecto solo los activos: así el registro, Invitaciones y Crear Aviso no ofrecen
+// uno desactivado sin tener que filtrarlo cada pantalla.
 router.get('/', async (req, res) => {
+  const incluirInactivos = req.query.incluir_inactivos === '1';
   try {
-    const result = await db.query('SELECT id_dep, nombre, solo_por_invitacion FROM departamentos ORDER BY nombre ASC');
+    const result = await db.query(
+      `SELECT id_dep, nombre, solo_por_invitacion, (fecha_desactivado IS NULL) AS activo
+       FROM departamentos
+       WHERE $1 OR fecha_desactivado IS NULL
+       ORDER BY nombre ASC`,
+      [incluirInactivos]
+    );
     res.json(result.rows);
   } catch (error) {
     console.error('Error al obtener departamentos:', error);
@@ -78,6 +94,9 @@ router.get('/gestion', soloTyC, async (req, res) => {
     const result = await db.query(
       `SELECT d.id_dep, d.nombre, d.solo_por_invitacion,
               (d.nombre = $1) AS protegido,
+              (d.fecha_desactivado IS NULL) AS activo,
+              d.fecha_desactivado,
+              (SELECT u.nombre_completo FROM usuarios u WHERE u.id_usu = d.desactivado_por) AS desactivado_por,
               (SELECT COUNT(*) FROM usuarios u WHERE u.id_departamento = d.id_dep AND u.activo)::int AS activos,
               (SELECT COUNT(*) FROM usuarios u WHERE u.id_departamento = d.id_dep AND NOT u.activo)::int AS desactivados,
               (SELECT COUNT(*) FROM invitaciones i WHERE i.id_departamento = d.id_dep)::int AS invitaciones,
@@ -86,7 +105,7 @@ router.get('/gestion', soloTyC, async (req, res) => {
                   AND i.fecha_cancelada IS NULL AND i.fecha_expira > CURRENT_TIMESTAMP)::int AS invitaciones_pendientes,
               (SELECT COUNT(*) FROM anuncios a WHERE a.id_dep_destino = d.id_dep)::int AS avisos
        FROM departamentos d
-       ORDER BY d.nombre`,
+       ORDER BY (d.fecha_desactivado IS NOT NULL), d.nombre`,
       [DEPARTAMENTO_TYC]
     );
     res.json(result.rows);
@@ -149,6 +168,64 @@ router.put('/:id', soloTyC, async (req, res) => {
   } catch (err) {
     if (err.code === PG_DUPLICADO) return res.status(409).json({ error: MENSAJE_DUPLICADO });
     console.error('Error al editar departamento:', err);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// ── Desactivar o volver a activar (migración 020) ─────────────────────
+// Desactivar y cancelar sus invitaciones pendientes van en una sola transacción: o pasan
+// las dos o ninguna. SELECT ... FOR UPDATE bloquea la fila del departamento hasta el final.
+// Invitaciones (routes/invitaciones.js) ya no acepta un departamento desactivado.
+router.put('/:id/activo', soloTyC, async (req, res) => {
+  const idDep = idValido(req.params.id);
+  if (!idDep) return res.status(400).json({ error: 'Departamento no válido' });
+  if (typeof req.body.activo !== 'boolean') {
+    return res.status(400).json({ error: 'Indica si el departamento queda activo' });
+  }
+  const activar = req.body.activo;
+
+  try {
+    const resultado = await db.transaccion(async (cliente) => {
+      const actual = await cliente.query(
+        'SELECT nombre, (fecha_desactivado IS NULL) AS activo FROM departamentos WHERE id_dep = $1 FOR UPDATE',
+        [idDep]
+      );
+      if (actual.rows.length === 0) return { status: 404, cuerpo: { error: 'Departamento no encontrado' } };
+
+      const dep = actual.rows[0];
+      if (!activar && dep.nombre === DEPARTAMENTO_TYC) {
+        return { status: 400, cuerpo: { error: 'Talento y Cultura no se puede desactivar: la app lo usa para dar sus permisos' } };
+      }
+      // Ya estaba así: no se toca la fecha ni quién lo hizo
+      if (dep.activo === activar) {
+        return { status: 200, cuerpo: { id_dep: idDep, nombre: dep.nombre, activo: activar, cambio: false, invitaciones_canceladas: 0 } };
+      }
+
+      await cliente.query(
+        `UPDATE departamentos
+         SET fecha_desactivado = CASE WHEN $2 THEN NULL ELSE NOW() END,
+             desactivado_por   = CASE WHEN $2 THEN NULL ELSE $3::int END
+         WHERE id_dep = $1`,
+        [idDep, activar, req.usuario.id_usu]
+      );
+
+      let canceladas = 0;
+      if (!activar) {
+        const inv = await cliente.query(
+          `UPDATE invitaciones i SET fecha_cancelada = NOW()
+           WHERE i.id_departamento = $1 AND ${SQL_PENDIENTE}`,
+          [idDep]
+        );
+        canceladas = inv.rowCount;
+      }
+      return {
+        status: 200,
+        cuerpo: { id_dep: idDep, nombre: dep.nombre, activo: activar, cambio: true, invitaciones_canceladas: canceladas }
+      };
+    });
+    res.status(resultado.status).json(resultado.cuerpo);
+  } catch (err) {
+    console.error('Error al cambiar el estado del departamento:', err);
     res.status(500).json({ error: 'Error interno del servidor' });
   }
 });

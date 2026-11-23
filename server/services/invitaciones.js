@@ -26,7 +26,8 @@ const SQL_PENDIENTE = 'i.fecha_uso IS NULL AND i.fecha_cancelada IS NULL AND i.f
 
 const enlaceRegistro = (token, origen) => `${direccionApp(origen)}/registro?invitacion=${token}`;
 
-// Buscar una invitación pendiente por su token.
+// Buscar una invitación pendiente por su token. Si su departamento está desactivado
+// (migración 020) no cuenta: al desactivarlo se cancelan, esto cubre una creada justo a la vez.
 // Regresa { id_inv, correo, id_departamento, departamento, fecha_expira } o null.
 const buscarPendiente = async (token) => {
   if (!tokenValido(token)) return null;
@@ -34,7 +35,8 @@ const buscarPendiente = async (token) => {
     `SELECT i.id_inv, i.correo, i.id_departamento, d.nombre AS departamento, i.fecha_expira
      FROM invitaciones i
      JOIN departamentos d ON d.id_dep = i.id_departamento
-     WHERE i.token_hash = $1 AND ${SQL_PENDIENTE}`,
+     WHERE i.token_hash = $1 AND ${SQL_PENDIENTE}
+       AND d.fecha_desactivado IS NULL`,
     [huella(token)]
   );
   return result.rows[0] || null;

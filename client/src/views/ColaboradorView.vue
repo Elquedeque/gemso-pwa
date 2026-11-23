@@ -76,7 +76,7 @@
             <div class="form-group">
               <label for="departamento">Departamento *</label>
               <select id="departamento" v-model="form.id_departamento" :disabled="esUnoMismo" required>
-                <option v-for="d in opciones.departamentos" :key="d.id_dep" :value="d.id_dep">{{ d.nombre }}</option>
+                <option v-for="d in departamentosDisponibles" :key="d.id_dep" :value="d.id_dep">{{ d.nombre }}</option>
               </select>
               <span v-if="esUnoMismo" class="nota">No puedes cambiar tu propio departamento.</span>
             </div>
@@ -317,6 +317,14 @@ const gerentesDisponibles = computed(() => {
   }
   return lista;
 });
+
+// Departamentos: los activos y, si su departamento actual está desactivado (migración 020),
+// también ese, para que se pueda guardar sin moverlo. A uno desactivado no se mueve a nadie.
+const departamentosDisponibles = computed(() =>
+  opciones.value.departamentos
+    .filter((d) => d.activo || d.id_dep === colaborador.value?.id_departamento)
+    .map((d) => (d.activo ? d : { ...d, nombre: `${d.nombre} (inactivo)` }))
+);
 
 // 'entra' | 'sale' | null: para avisar del cambio de permisos antes de guardar
 const nombreDepartamento = (id) => opciones.value.departamentos.find((d) => d.id_dep === id)?.nombre;

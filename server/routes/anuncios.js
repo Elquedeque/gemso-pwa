@@ -328,6 +328,17 @@ router.post('/', autenticar, async (req, res) => {
       return res.status(403).json({ error: 'No tienes permiso para publicar avisos' });
     }
 
+    // El departamento destino debe existir y estar activo (migración 020)
+    if (idDepDestino !== null) {
+      const destino = await db.query('SELECT (fecha_desactivado IS NULL) AS activo FROM departamentos WHERE id_dep = $1', [idDepDestino]);
+      if (destino.rows.length === 0) {
+        return res.status(400).json({ error: 'El departamento destino no existe' });
+      }
+      if (!destino.rows[0].activo) {
+        return res.status(400).json({ error: 'El departamento destino está desactivado' });
+      }
+    }
+
     // La persona destino debe existir y estar activa: a un desactivado no le llegaría (migración 013)
     if (idUsuDestino !== null) {
       const destino = await db.query('SELECT activo FROM usuarios WHERE id_usu = $1', [idUsuDestino]);

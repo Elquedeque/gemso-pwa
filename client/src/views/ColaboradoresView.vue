@@ -30,7 +30,9 @@
         <div class="filtros-fila">
           <select v-model="idDepartamento" aria-label="Filtrar por departamento">
             <option value="">Todos los departamentos</option>
-            <option v-for="dep in departamentos" :key="dep.id_dep" :value="dep.id_dep">{{ dep.nombre }}</option>
+            <option v-for="dep in departamentos" :key="dep.id_dep" :value="dep.id_dep">
+              {{ dep.activo ? dep.nombre : `${dep.nombre} (inactivo)` }}
+            </option>
           </select>
           <select v-model="estado" aria-label="Filtrar por estado">
             <option value="activos">Activos</option>
@@ -117,7 +119,8 @@ const cargarColaboradores = async () => {
 
 const cargarDepartamentos = async () => {
   try {
-    const res = await apiFetch('/api/departamentos');
+    // También los desactivados: sus colaboradores siguen ahí y hay que poder encontrarlos
+    const res = await apiFetch('/api/departamentos?incluir_inactivos=1');
     if (res.ok) departamentos.value = await res.json();
   } catch (err) {
     console.error('Error al obtener departamentos:', err);

@@ -249,7 +249,8 @@ const invitar = async () => {
 const reenviar = (inv) => {
   const dep = departamentos.value.find((d) => d.nombre === inv.departamento);
   if (!dep) {
-    errorMsg.value = 'El departamento de esa invitación ya no existe.';
+    // El catálogo solo trae los activos (migración 020)
+    errorMsg.value = 'El departamento de esa invitación ya no existe o está desactivado. Invita a esa persona con otro departamento.';
     return;
   }
   enviarInvitacion(inv.correo, dep.id_dep);

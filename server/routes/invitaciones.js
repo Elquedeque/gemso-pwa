@@ -70,14 +70,22 @@ router.post('/', async (req, res) => {
     const datos = await db.query(
       `SELECT
          (SELECT nombre FROM departamentos WHERE id_dep = $1) AS departamento,
+         (SELECT fecha_desactivado IS NULL FROM departamentos WHERE id_dep = $1) AS departamento_activo,
          (SELECT nombre_completo FROM usuarios WHERE id_usu = $2) AS invitado_por,
          EXISTS (SELECT 1 FROM usuarios WHERE LOWER(correo) = $3) AS ya_registrado`,
       [idDepartamento, req.usuario.id_usu, correo]
     );
-    const { departamento, invitado_por: invitadoPor, ya_registrado: yaRegistrado } = datos.rows[0];
+    const {
+      departamento, departamento_activo: departamentoActivo,
+      invitado_por: invitadoPor, ya_registrado: yaRegistrado
+    } = datos.rows[0];
 
     if (!departamento) {
       return res.status(400).json({ error: 'El departamento no existe' });
+    }
+    // Desactivado desde Departamentos (migración 020)
+    if (!departamentoActivo) {
+      return res.status(400).json({ error: 'Ese departamento está desactivado. Actívalo en Departamentos o elige otro.' });
     }
     if (yaRegistrado) {
       return res.status(409).json({ error: 'Ese correo ya tiene una cuenta en la app' });

@@ -93,20 +93,62 @@
                 </div>
               </div>
 
+              <!-- Confirmar desactivación (migración 020) -->
+              <div v-else-if="desactivando === dep.id_dep" class="confirmacion">
+                <p>¿Desactivar <strong>{{ dep.nombre }}</strong>?</p>
+                <ul class="efectos">
+                  <li>Ya no aparecerá al registrarse, al invitar, al publicar un aviso ni al cambiar el departamento de un colaborador.</li>
+                  <li v-if="totalPersonas(dep) === 1">Su colaborador se queda en él y sigue viendo sus avisos.</li>
+                  <li v-else-if="totalPersonas(dep) > 1">
+                    Sus {{ totalPersonas(dep) }} colaboradores se quedan en él y siguen viendo sus avisos.
+                  </li>
+                  <li v-if="dep.invitaciones_pendientes">
+                    Se {{ dep.invitaciones_pendientes === 1 ? 'cancelará' : 'cancelarán' }}
+                    <strong>{{ plural(dep.invitaciones_pendientes, 'invitación pendiente', 'invitaciones pendientes') }}</strong>;
+                    si hace falta, vuelve a invitar a esas personas con otro departamento.
+                  </li>
+                  <li>Puedes volver a activarlo cuando quieras.</li>
+                </ul>
+                <p v-if="errorFila" class="error-text">{{ errorFila }}</p>
+                <div class="acciones">
+                  <button type="button" class="btn-secundario" :disabled="guardando" @click="cancelar">Cancelar</button>
+                  <button type="button" class="btn-peligro" :disabled="guardando" @click="cambiarEstado(dep, false)">
+                    {{ guardando ? 'Desactivando...' : 'Sí, desactivar' }}
+                  </button>
+                </div>
+              </div>
+
               <!-- Vista normal -->
               <template v-else>
-                <div class="fila-info">
+                <div class="fila-info" :class="{ inactivo: !dep.activo }">
                   <span class="fila-nombre">
                     {{ dep.nombre }}
+                    <span v-if="!dep.activo" class="etiqueta etiqueta-inactivo">Inactivo</span>
                     <span v-if="dep.solo_por_invitacion" class="etiqueta">Solo por invitación</span>
                   </span>
                   <span class="fila-detalle">{{ resumen(dep) }}</span>
+                  <span v-if="!dep.activo" class="fila-detalle">
+                    Desactivado el {{ formatearFecha(dep.fecha_desactivado) }}<template v-if="dep.desactivado_por"> por {{ dep.desactivado_por }}</template>
+                  </span>
                   <span v-if="dep.protegido" class="fila-detalle">
-                    No se puede renombrar ni borrar: la app lo usa para dar los permisos de Talento y Cultura.
+                    No se puede renombrar, desactivar ni borrar: la app lo usa para dar los permisos de Talento y Cultura.
                   </span>
                 </div>
                 <div v-if="!dep.protegido" class="acciones">
                   <button type="button" class="btn-secundario" @click="empezarEdicion(dep)">Editar</button>
+                  <button
+                    v-if="dep.activo"
+                    type="button"
+                    class="btn-secundario"
+                    @click="empezarDesactivacion(dep)"
+                  >Desactivar</button>
+                  <button
+                    v-else
+                    type="button"
+                    class="btn-secundario"
+                    :disabled="guardando"
+                    @click="cambiarEstado(dep, true)"
+                  >Activar</button>
                   <button
                     type="button"
                     class="btn-peligro"
@@ -120,7 +162,7 @@
           </ul>
           <p class="nota">
             Solo se puede borrar un departamento sin colaboradores, invitaciones ni avisos.
-            Si ya no se usa, mueve a sus colaboradores desde Colaboradores o renómbralo.
+            Si ya no se usa, desactívalo: deja de aparecer en las listas sin perder su historial.
           </p>
         </template>
       </section>
@@ -133,7 +175,7 @@
 
 <script setup>
 // Pantalla de Departamentos (solo con permiso 'gestionar_colaboradores', en la beta Talento y Cultura)
-// Crear, renombrar y borrar departamentos. Las reglas las aplica el servidor
+// Crear, renombrar, desactivar (migración 020) y borrar departamentos. Las reglas las aplica el servidor
 // (server/routes/departamentos.js); aquí solo se muestran y se evita lo que no procede.
 import { ref, watch, onMounted } from 'vue';
 import { apiFetch } from '../api';
@@ -156,9 +198,10 @@ const creando = ref(false);
 const errorCrear = ref('');
 const mensaje = ref('');
 
-// Solo una fila a la vez se edita o se confirma para borrar
+// Solo una fila a la vez se edita o se confirma para borrar o desactivar
 const editando = ref(null); // copia { id_dep, nombre, solo_por_invitacion }
 const borrando = ref(null); // id_dep
+const desactivando = ref(null); // id_dep
 const guardando = ref(false);
 const errorFila = ref('');
 // Resultado de editar o borrar: se muestra en la lista, que es donde está la persona
@@ -188,6 +231,10 @@ const resumen = (dep) => {
   if (dep.avisos) partes.push(plural(dep.avisos, 'aviso dirigido', 'avisos dirigidos'));
   return partes.join(' · ');
 };
+
+// "20 de noviembre de 2026"
+const formatearFecha = (valor) =>
+  new Date(valor).toLocaleDateString('es-MX', { day: 'numeric', month: 'long', year: 'numeric' });
 
 const cargar = async () => {
   errorLista.value = '';
@@ -227,7 +274,44 @@ const crear = async () => {
 const cancelar = () => {
   editando.value = null;
   borrando.value = null;
+  desactivando.value = null;
   errorFila.value = '';
+};
+
+const empezarDesactivacion = (dep) => {
+  cancelar();
+  limpiarMensajes();
+  desactivando.value = dep.id_dep;
+};
+
+// Desactivar pide confirmación (empezarDesactivacion); activar se hace directo
+const cambiarEstado = async (dep, activo) => {
+  limpiarMensajes();
+  errorFila.value = '';
+  guardando.value = true;
+  try {
+    const res = await apiFetch(`/api/departamentos/${dep.id_dep}/activo`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ activo })
+    });
+    if (!res.ok) throw new Error(await leerError(res, 'No se pudo cambiar el estado del departamento.'));
+    const datos = await res.json();
+    cancelar();
+    mensajeLista.value = activo
+      ? `Se activó el departamento ${dep.nombre}.`
+      : `Se desactivó el departamento ${dep.nombre}.` +
+        (datos.invitaciones_canceladas
+          ? ` Se ${datos.invitaciones_canceladas === 1 ? 'canceló' : 'cancelaron'} ${plural(datos.invitaciones_canceladas, 'invitación pendiente', 'invitaciones pendientes')}.`
+          : '');
+    await cargar();
+  } catch (err) {
+    // Activar no abre confirmación: el error se muestra arriba de la lista
+    if (activo) errorLista.value = err.message;
+    else errorFila.value = err.message;
+  } finally {
+    guardando.value = false;
+  }
 };
 
 const empezarEdicion = (dep) => {
@@ -469,7 +553,8 @@ input[type="text"]:focus {
   flex-direction: column;
 }
 
-.lista li + li {
+/* > para que no alcance a la lista de efectos de la confirmación */
+.lista > li + li {
   border-top: 1px solid var(--border-color, #e2e8f0);
 }
 
@@ -514,8 +599,30 @@ input[type="text"]:focus {
 
 .acciones {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.5rem;
   justify-content: flex-end;
+}
+
+/* Departamento desactivado (migración 020) */
+.etiqueta-inactivo {
+  background: var(--bg-primary, #f1f5f9);
+  color: var(--text-secondary, #475569);
+  border: 1px solid var(--border-color, #cbd5e1);
+}
+
+.fila-info.inactivo .fila-nombre {
+  color: var(--text-secondary, #64748b);
+}
+
+.efectos {
+  margin: 0;
+  padding-left: 1.1rem;
+  font-size: 0.82rem;
+  color: var(--text-secondary, #475569);
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
 }
 
 .edicion,
