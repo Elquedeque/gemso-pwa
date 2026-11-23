@@ -1,13 +1,17 @@
 // Campana de notificaciones (GET /api/anuncios/notificaciones, migración 015)
 // Estado compartido: lo usan AppHeader (contador rojo) y NotificationsDrawer (lista),
 // que se montan por separado en cada pantalla.
-//   - avisos:    avisos que el usuario no ha abierto (máximo 20, los más recientes)
-//   - nuevas:    cuántos se publicaron desde la última vez que tocó "Marcar todas como leídas"
-//   - sinAbrir:  total de avisos sin abrir (puede ser mayor que la lista)
+//   - avisos:        avisos que el usuario no ha abierto (máximo 20, los más recientes)
+//   - recordatorios: solo para TyC (sesión 16): cumpleaños y aniversarios del día y avisos
+//                    bajo la meta. No se abren ni se borran: salen solos cuando dejan de aplicar
+//   - nuevas:        avisos publicados y recordatorios aparecidos desde la última vez que tocó
+//                    "Marcar todas como leídas" (es el número rojo del encabezado)
+//   - sinAbrir:      total de avisos sin abrir (puede ser mayor que la lista)
 import { ref } from 'vue';
 import { apiFetch } from '../api';
 
-export const campana = ref({ avisos: [], nuevas: 0, sinAbrir: 0, cargando: false, error: '' });
+const VACIA = () => ({ avisos: [], recordatorios: [], nuevas: 0, sinAbrir: 0, cargando: false, error: '' });
+export const campana = ref(VACIA());
 
 // Cada pantalla vuelve a montar el encabezado; para no consultar en cada cambio de
 // pantalla, se reutiliza la respuesta por unos segundos (salvo que se pida forzar).
@@ -22,7 +26,7 @@ export const cargarCampana = async (forzar = false) => {
   if (!token) return;
   // Si cambió la sesión (otra persona en un equipo compartido), no se muestran los avisos del anterior
   if (token !== tokenCargado) {
-    campana.value = { avisos: [], nuevas: 0, sinAbrir: 0, cargando: false, error: '' };
+    campana.value = VACIA();
     abiertos.clear();
     tokenCargado = token;
     forzar = true;
@@ -40,6 +44,8 @@ export const cargarCampana = async (forzar = false) => {
     // que el usuario acaba de abrir: se quita aquí y se descuenta de los contadores.
     // La respuesta es de una sola consulta, así que lista y contadores son coherentes.
     let { avisos, nuevas, sin_abrir: sinAbrir } = data;
+    const recordatorios = data.recordatorios || [];
+    nuevas += recordatorios.filter((r) => r.nueva).length;
     for (const aviso of avisos.filter((a) => abiertos.has(a.id_anu))) {
       sinAbrir -= 1;
       if (aviso.nueva) nuevas -= 1;
@@ -47,6 +53,7 @@ export const cargarCampana = async (forzar = false) => {
     // Los que el servidor ya no manda ya quedaron registrados como vistos
     for (const id of abiertos) if (!avisos.some((a) => a.id_anu === id)) abiertos.delete(id);
     campana.value.avisos = avisos.filter((a) => !abiertos.has(a.id_anu));
+    campana.value.recordatorios = recordatorios;
     campana.value.nuevas = Math.max(0, nuevas);
     campana.value.sinAbrir = Math.max(0, sinAbrir);
   } catch (error) {
@@ -70,11 +77,13 @@ export const quitarDeCampana = (idAnu) => {
 };
 
 // "Marcar todas como leídas": quita el contador; los avisos siguen en la lista hasta abrirlos
+// y los recordatorios hasta que dejan de aplicar
 export const marcarTodasLeidas = async () => {
   const res = await apiFetch('/api/anuncios/notificaciones/leidas', { method: 'POST' });
   if (!res.ok) throw new Error('No se pudieron marcar como leídas');
   campana.value.nuevas = 0;
   campana.value.avisos = campana.value.avisos.map((a) => ({ ...a, nueva: false }));
+  campana.value.recordatorios = campana.value.recordatorios.map((r) => ({ ...r, nueva: false }));
 };
 
 // "Hace 5 min", "Hace 3 h", "Ayer" o "12 nov"

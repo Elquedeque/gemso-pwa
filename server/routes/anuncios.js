@@ -2,7 +2,7 @@
 //   GET  /api/anuncios            Lista de avisos que el usuario puede ver. Opcionales: ?limite=N, ?destacados=1,
 //                                 ?filtro=area|globales|urgentes y ?antes=<id_anu> (siguiente página)
 //   GET  /api/anuncios/destinatarios  Personas a las que se puede dirigir un aviso (solo con permiso publicar_avisos)
-//   GET  /api/anuncios/notificaciones          Campana: avisos sin abrir y cuántos son nuevos
+//   GET  /api/anuncios/notificaciones          Campana: avisos sin abrir, cuántos son nuevos y, para TyC, sus recordatorios
 //   POST /api/anuncios/notificaciones/leidas   Campana: "Marcar todas como leídas"
 //   GET  /api/anuncios/:id       Detalle de un aviso con sus adjuntos (y registra que lo vio)
 //   POST /api/anuncios            Publicar un aviso (solo con permiso publicar_avisos) y mandar push
@@ -27,7 +27,8 @@ const db = require('../config/db');
 const almacenamiento = require('../services/almacenamiento');
 const autenticar = require('../middleware/autenticar');
 const requierePermiso = require('../middleware/requierePermiso');
-const { PERMISO_PUBLICAR_AVISOS, tienePermiso } = require('../services/permisos');
+const { PERMISO_PUBLICAR_AVISOS, PERMISO_RECIBIR_RECORDATORIOS, tienePermiso, obtenerPermisos } = require('../services/permisos');
+const { recordatoriosDeCampana } = require('../services/recordatorios');
 const { notificarNuevoAviso } = require('../services/notificaciones');
 
 const router = express.Router();
@@ -201,10 +202,26 @@ router.get('/notificaciones', autenticar, async (req, res) => {
       [idUsu, id_departamento]
     );
     const primera = result.rows[0];
+
+    // Recordatorios de TyC (sesión 16): solo con el permiso recibir_recordatorios.
+    // Si fallan, la campana igual muestra los avisos.
+    let recordatorios = [];
+    try {
+      const permisos = await obtenerPermisos(idUsu);
+      if (permisos.includes(PERMISO_RECIBIR_RECORDATORIOS)) {
+        // El mismo corte que usan los avisos para saber cuáles son nuevos
+        const { rows: [{ corte }] } = await db.query(`SELECT ${SQL_CORTE_CAMPANA} AS corte`, [idUsu]);
+        recordatorios = await recordatoriosDeCampana(idUsu, corte, permisos);
+      }
+    } catch (error) {
+      console.error('Error al calcular recordatorios de la campana:', error);
+    }
+
     res.json({
       sin_abrir: primera ? primera.total_sin_abrir : 0,
       nuevas: primera ? primera.total_nuevas : 0,
-      avisos: result.rows.map(({ total_sin_abrir, total_nuevas, ...aviso }) => aviso)
+      avisos: result.rows.map(({ total_sin_abrir, total_nuevas, ...aviso }) => aviso),
+      recordatorios
     });
   } catch (error) {
     console.error('Error al obtener notificaciones:', error);

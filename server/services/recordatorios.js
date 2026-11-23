@@ -17,7 +17,7 @@ const db = require('../config/db');
 const { enviarASuscripciones } = require('./notificaciones');
 const { enviarCorreo, escaparHtml, correoHabilitado } = require('./correo');
 const { CONSULTA_RESUMEN, CONSULTA_DEPARTAMENTOS, leerMeta } = require('./estadisticas');
-const { PERMISO_RECIBIR_RECORDATORIOS } = require('./permisos');
+const { PERMISO_RECIBIR_RECORDATORIOS, PERMISO_GESTIONAR_COLABORADORES, PERMISO_VER_ESTADISTICAS } = require('./permisos');
 const F = require('./fechas');
 
 // Horario en que se mandan recordatorios (hora de Hermosillo)
@@ -389,4 +389,69 @@ const ejecutarPendientes = async (ahora = new Date()) => {
   return resultado;
 };
 
-module.exports = { ejecutarPendientes, fechasImportantes, esAniversarioEspecial, HORA_INICIO, HORA_FIN };
+// ── Campana (sesión 16) ──────────────────────────────────────
+// Los mismos recordatorios del push, para verlos también en la campana de la app.
+// No se guardan: se calculan al abrir la campana con las mismas consultas y reglas,
+// así funcionan aunque la persona no tenga push activado y desaparecen solos:
+//   - Cumpleaños y aniversarios: solo el día (sin contar los propios).
+//   - Avisos bajo la meta: mientras sigan bajo la meta, de los 3 a los 30 días de publicados.
+// "corte": la última vez que tocó "Marcar todas como leídas". Un recordatorio es nuevo si
+// apareció después: las celebraciones al empezar el día y la alerta de un aviso al cumplir 3 días.
+// "permisos" decide a dónde lleva cada uno: sin permiso para esa pantalla, url queda en null.
+const DIA_MS = 24 * 60 * 60 * 1000;
+
+// Medianoche de un día 'AAAA-MM-DD' en Hermosillo (UTC-7 todo el año, sin horario de verano)
+const inicioDelDia = (texto) => new Date(`${texto}T00:00:00-07:00`);
+
+const recordatoriosDeCampana = async (idUsu, corte, permisos) => {
+  const hoy = F.fechaLocal();
+  const inicioHoy = inicioDelDia(hoy);
+  const puedeVerColaboradores = permisos.includes(PERMISO_GESTIONAR_COLABORADORES);
+  const puedeVerEstadisticas = permisos.includes(PERMISO_VER_ESTADISTICAS);
+
+  const celebraciones = (await fechasImportantes(hoy, hoy))
+    .filter((e) => e.id_usu !== idUsu)
+    .map((e) => {
+      const { titulo, cuerpo } = mensajeDelDia([e], hoy);
+      return {
+        clave: `${e.tipo}-${e.id_usu}-${hoy}`,
+        tipo: e.tipo,
+        titulo,
+        cuerpo,
+        fecha: inicioHoy,
+        nueva: inicioHoy > corte,
+        url: puedeVerColaboradores ? `/colaboradores/${e.id_usu}` : null
+      };
+    });
+
+  const { meta } = await leerMeta();
+  const desde = F.sumarDias(hoy, -DIAS_REVISION);
+  const hasta = F.sumarDias(hoy, -(DIAS_PARA_ALERTA - 1));
+  const { rows } = await db.query(CONSULTA_RESUMEN, [null, desde, null, null, hasta, false]);
+  const bajos = rows
+    .filter((a) => vaBajoMeta(a.confirmados, a.destinatarios, meta))
+    .map((a) => {
+      const { titulo, cuerpo } = mensajeBajoMeta([a], meta, hoy);
+      const fecha = new Date(new Date(a.fecha_creacion).getTime() + DIAS_PARA_ALERTA * DIA_MS);
+      return {
+        clave: `bajo_meta-${a.id_anu}`,
+        tipo: 'bajo_meta',
+        titulo,
+        cuerpo,
+        fecha,
+        nueva: fecha > corte,
+        url: puedeVerEstadisticas ? `/estadisticas/${a.id_anu}` : null
+      };
+    });
+
+  return [...celebraciones, ...bajos];
+};
+
+module.exports = {
+  ejecutarPendientes,
+  fechasImportantes,
+  esAniversarioEspecial,
+  recordatoriosDeCampana,
+  HORA_INICIO,
+  HORA_FIN
+};

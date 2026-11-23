@@ -13,34 +13,58 @@
 
       <!-- Contenido Principal: avisos que todavía no has abierto -->
       <div class="notifications-body">
-        <p v-if="campana.error && campana.avisos.length === 0" class="empty-state">
+        <p v-if="campana.error && vacia" class="empty-state">
           {{ campana.error }}
           <button class="clear-all-btn" @click="cargarCampana(true)">Reintentar</button>
         </p>
-        <p v-else-if="campana.cargando && campana.avisos.length === 0" class="empty-state">Cargando...</p>
-        <div v-else-if="campana.avisos.length === 0" class="empty-state">
+        <p v-else-if="campana.cargando && vacia" class="empty-state">Cargando...</p>
+        <div v-else-if="vacia" class="empty-state">
           <p>Estás al día: ya abriste todos tus avisos.</p>
         </div>
 
         <template v-else>
-          <p class="resumen">
-            {{ campana.sinAbrir === 1 ? 'Tienes 1 aviso sin abrir' : `Tienes ${campana.sinAbrir} avisos sin abrir` }}
-          </p>
-          <button
-            v-for="aviso in campana.avisos"
-            :key="aviso.id_anu"
-            type="button"
-            class="notification-item"
-            :class="{ unread: aviso.nueva, urgente: aviso.urgente }"
-            @click="abrirAviso(aviso)"
-          >
-            <span class="notif-header">
-              <span class="notif-categoria">{{ aviso.urgente ? 'Urgente' : aviso.categoria }}</span>
-              <span class="notif-time">{{ tiempoRelativo(aviso.fecha_creacion) }}</span>
-            </span>
-            <span class="notif-title">{{ aviso.titulo }}</span>
-            <span class="notif-desc">{{ aviso.contenido }}</span>
-          </button>
+          <!-- Recordatorios de Talento y Cultura (solo con el permiso recibir_recordatorios) -->
+          <template v-if="campana.recordatorios.length">
+            <p class="resumen">Recordatorios</p>
+            <component
+              :is="r.url ? 'button' : 'div'"
+              v-for="r in campana.recordatorios"
+              :key="r.clave"
+              :type="r.url ? 'button' : undefined"
+              class="notification-item recordatorio"
+              :class="{ unread: r.nueva, 'bajo-meta': r.tipo === 'bajo_meta', 'sin-enlace': !r.url }"
+              @click="r.url && abrirRecordatorio(r)"
+            >
+              <span class="notif-header">
+                <span class="notif-categoria">{{ ETIQUETAS_RECORDATORIO[r.tipo] }}</span>
+                <span class="notif-time">{{ r.tipo === 'bajo_meta' ? tiempoRelativo(r.fecha) : 'Hoy' }}</span>
+              </span>
+              <span class="notif-title">{{ r.titulo }}</span>
+              <span class="notif-desc">{{ r.cuerpo }}</span>
+            </component>
+          </template>
+
+          <template v-if="campana.avisos.length">
+            <p class="resumen">
+              {{ campana.sinAbrir === 1 ? 'Tienes 1 aviso sin abrir' : `Tienes ${campana.sinAbrir} avisos sin abrir` }}
+            </p>
+            <button
+              v-for="aviso in campana.avisos"
+              :key="aviso.id_anu"
+              type="button"
+              class="notification-item"
+              :class="{ unread: aviso.nueva, urgente: aviso.urgente }"
+              @click="abrirAviso(aviso)"
+            >
+              <span class="notif-header">
+                <span class="notif-categoria">{{ aviso.urgente ? 'Urgente' : aviso.categoria }}</span>
+                <span class="notif-time">{{ tiempoRelativo(aviso.fecha_creacion) }}</span>
+              </span>
+              <span class="notif-title">{{ aviso.titulo }}</span>
+              <span class="notif-desc">{{ aviso.contenido }}</span>
+            </button>
+          </template>
+          <p v-else class="resumen">Ya abriste todos tus avisos.</p>
         </template>
       </div>
 
@@ -59,7 +83,9 @@
 // Panel de la campana: avisos que el usuario puede ver y no ha abierto (utils/campana.js).
 // Resaltados los nuevos (publicados después de "Marcar todas como leídas").
 // Al tocar uno se abre el aviso, y eso lo registra como visto en las estadísticas.
-import { ref, watch } from 'vue';
+// Para TyC, arriba van sus recordatorios (sesión 16). Tocarlos lleva al colaborador o a las
+// estadísticas del aviso, pero no los quita: desaparecen solos cuando dejan de aplicar.
+import { ref, computed, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { campana, cargarCampana, quitarDeCampana, marcarTodasLeidas, tiempoRelativo } from '../utils/campana';
 
@@ -78,6 +104,19 @@ const marcando = ref(false);
 watch(() => props.isOpen, (abierto) => {
   if (abierto) cargarCampana(true);
 });
+
+const ETIQUETAS_RECORDATORIO = {
+  cumpleanos: 'Cumpleaños',
+  aniversario: 'Aniversario',
+  bajo_meta: 'Bajo la meta'
+};
+
+const vacia = computed(() => campana.value.avisos.length === 0 && campana.value.recordatorios.length === 0);
+
+const abrirRecordatorio = (recordatorio) => {
+  emit('close');
+  router.push(recordatorio.url);
+};
 
 const abrirAviso = (aviso) => {
   quitarDeCampana(aviso.id_anu);
@@ -225,6 +264,32 @@ const marcarTodas = async () => {
 
 .notification-item.urgente {
   border-left: 4px solid var(--color-danger, #dc2626);
+}
+
+/* Recordatorios de TyC: celebraciones en verde, avisos bajo la meta en ámbar */
+.notification-item.recordatorio .notif-categoria {
+  color: var(--tint-green-text, #15803d);
+}
+
+.notification-item.recordatorio.unread {
+  border-left-color: var(--tint-green-text, #15803d);
+}
+
+.notification-item.bajo-meta .notif-categoria {
+  color: var(--tint-amber-text, #b45309);
+}
+
+.notification-item.bajo-meta.unread {
+  border-left-color: var(--tint-amber-text, #b45309);
+}
+
+/* Sin permiso para la pantalla a la que lleva: se muestra pero no se puede tocar */
+.notification-item.sin-enlace {
+  cursor: default;
+}
+
+.notification-item.sin-enlace:hover {
+  border-color: var(--border-color, #e2e8f0);
 }
 
 .notif-header {

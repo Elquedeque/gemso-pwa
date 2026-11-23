@@ -17,6 +17,7 @@
   --tint-blue-text: #2563eb;
   --tint-green-bg: #f0fdf4;
   --tint-green-text: #15803d;
+  --tint-amber-text: #b45309; /* recordatorios bajo la meta (campana) */
   --tint-green-border: #bbf7d0;
   --tint-red-bg: #fef2f2;
   --tint-red-border: #fecaca;
@@ -52,6 +53,7 @@ html.dark {
   --tint-blue-text: #60a5fa;
   --tint-green-bg: rgba(34, 197, 94, 0.14);
   --tint-green-text: #4ade80;
+  --tint-amber-text: #fbbf24; /* recordatorios bajo la meta (campana) */
   --tint-green-border: rgba(34, 197, 94, 0.35);
   --tint-red-bg: rgba(239, 68, 68, 0.14);
   --tint-red-border: rgba(239, 68, 68, 0.35);
@@ -80,6 +82,7 @@ html.high-contrast {
   --bg-primary: #e2e8f0;        /* más diferencia entre el fondo y las tarjetas */
   --tint-blue-text: #1d4ed8;
   --tint-green-text: #166534;
+  --tint-amber-text: #92400e; /* recordatorios bajo la meta (campana) */
   --tint-green-border: #15803d;
   --tint-red-border: #b91c1c;
   --color-danger: #b91c1c;
@@ -96,6 +99,7 @@ html.dark.high-contrast {
   --bg-input: #000000;
   --tint-blue-text: #93c5fd;
   --tint-green-text: #86efac;
+  --tint-amber-text: #fcd34d; /* recordatorios bajo la meta (campana) */
   --tint-green-border: #4ade80;
   --tint-red-border: #f87171;
   --color-danger: #fca5a5;
