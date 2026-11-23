@@ -1,6 +1,7 @@
 // Rutas de Avisos / Comunicados (todas piden sesión iniciada)
 //   GET  /api/anuncios            Lista de avisos que el usuario puede ver. Opcionales: ?limite=N, ?destacados=1,
-//                                 ?filtro=area|globales|urgentes y ?antes=<id_anu> (siguiente página)
+//                                 ?filtro=area|globales|urgentes|mios y ?antes=<id_anu> (siguiente página).
+//                                 "mios" = publicados por el usuario, a cualquier destino (publicar_avisos)
 //   GET  /api/anuncios/destinatarios  Personas a las que se puede dirigir un aviso (solo con permiso publicar_avisos)
 //   GET  /api/anuncios/notificaciones          Campana: avisos sin abrir, cuántos son nuevos y, para TyC, sus recordatorios
 //   POST /api/anuncios/notificaciones/leidas   Campana: "Marcar todas como leídas"
@@ -45,7 +46,8 @@ const idOpcional = (valor) => {
 const CATEGORIAS_AVISO = ['Corporativo', 'Autofest 2026', 'Talento y Cultura', 'Sistemas / TI', 'General'];
 
 // Filtros de la lista (los chips de MisAnunciosView.vue). "area" = para mi departamento o para mí.
-const FILTROS_LISTA = ['todos', 'area', 'globales', 'urgentes'];
+// "mios" (sesión 16) = los que publicó el usuario, a cualquier destino; pide publicar_avisos.
+const FILTROS_LISTA = ['todos', 'area', 'globales', 'urgentes', 'mios'];
 
 // Regla de Visibilidad (la usan la lista, el detalle y la confirmación de lectura)
 // Un usuario puede ver:
@@ -103,6 +105,14 @@ router.get('/', autenticar, async (req, res) => {
   }
 
   try {
+    // "Publicados por mí": solo quien puede publicar (en la beta, Talento y Cultura)
+    if (filtro === 'mios' && !(await tienePermiso(idUsu, PERMISO_PUBLICAR_AVISOS))) {
+      return res.status(403).json({ error: 'No tienes permiso para publicar avisos' });
+    }
+
+    // Con "mios" no se usa la regla de visibilidad: el autor ve todos los que publicó,
+    // también los dirigidos a otro departamento o a otra persona (que en "Todos" no salen, CA8).
+    // Los archivados tampoco salen aquí.
     const query = `
       SELECT
         a.id_anu,
@@ -117,12 +127,17 @@ router.get('/', autenticar, async (req, res) => {
         a.id_usu_destino,
         u.nombre_completo AS autor,
         d.nombre AS departamento_destino,
+        ud.nombre_completo AS usuario_destino,
         EXISTS (SELECT 1 FROM anuncios_adj j WHERE j.id_anu = a.id_anu) AS tiene_adjunto,
         EXISTS (SELECT 1 FROM anuncios_leidos l WHERE l.id_anu = a.id_anu AND l.id_usu = $1) AS leido
       FROM anuncios a
       INNER JOIN usuarios u ON a.id_autor = u.id_usu
       LEFT JOIN departamentos d ON a.id_dep_destino = d.id_dep
-      WHERE ${FILTRO_VISIBLES}
+      LEFT JOIN usuarios ud ON a.id_usu_destino = ud.id_usu
+      WHERE CASE WHEN $6::text = 'mios'
+                 THEN a.id_autor = $1 AND a.fecha_archivado IS NULL
+                 ELSE ${FILTRO_VISIBLES}
+            END
         AND (NOT $4 OR a.destacado)
         AND ($5::int IS NULL
              OR (a.fecha_creacion, a.id_anu) < (SELECT p.fecha_creacion, p.id_anu FROM anuncios p WHERE p.id_anu = $5))

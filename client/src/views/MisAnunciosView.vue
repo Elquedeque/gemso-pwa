@@ -95,10 +95,23 @@
               </svg>
             </div>
             <h3 class="aviso-title">{{ aviso.titulo }}</h3>
+            <!-- "Publicados por mí": a quién se le mandó -->
+            <p v-if="filtroActivo === 'mios'" class="aviso-destino">Para: {{ aviso.destino }}</p>
+          </div>
+
+          <!-- Publicados por mí: el autor no confirma su propio aviso; ve cuánta gente lo leyó -->
+          <div v-if="filtroActivo === 'mios'" class="card-actions">
+            <button
+              v-if="puedeVerEstadisticas"
+              class="btn-action btn-solid"
+              @click="router.push(`/estadisticas/${aviso.id}`)"
+            >
+              Ver estadísticas
+            </button>
           </div>
 
           <!-- Acciones Inferiores -->
-          <div class="card-actions">
+          <div v-else class="card-actions">
             <button class="btn-action btn-outline" @click="verDetalleAviso(aviso)">
               Ver Más
             </button>
@@ -135,8 +148,14 @@
         <svg class="empty-icon" viewBox="0 0 24 24" fill="currentColor">
           <path d="M18 11v2h4v-2h-4zm-2 6.61c.96.71 2.21 1.65 3.2 2.39.4-.53.8-1.07 1.2-1.6-.99-.74-2.24-1.68-3.2-2.4-.4.54-.8 1.08-1.2 1.61zM20.4 5.6c-.4-.53-.8-1.07-1.2-1.6-.99.74-2.24 1.68-3.2 2.4.4.53.8 1.07 1.2 1.6.96-.72 2.21-1.65 3.2-2.4zM4 9c-1.1 0-2 .9-2 2v2c0 1.1.9 2 2 2h1v4h2v-4h1l5 3V6L8 9H4zm11.5 3c0-1.33-.58-2.53-1.5-3.35v6.69c.92-.81 1.5-2.01 1.5-3.34z"/>
         </svg>
-        <h3>Sin avisos por el momento</h3>
-        <p>No se encontraron avisos o comunicados en esta categoría.</p>
+        <template v-if="filtroActivo === 'mios'">
+          <h3>Todavía no has publicado avisos</h3>
+          <p>Los avisos que publiques, para quien sea, aparecerán aquí.</p>
+        </template>
+        <template v-else>
+          <h3>Sin avisos por el momento</h3>
+          <p>No se encontraron avisos o comunicados en esta categoría.</p>
+        </template>
       </div>
     </main>
 
@@ -147,7 +166,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { apiFetch } from '../api';
 import AppHeader from '../components/AppHeader.vue';
@@ -162,12 +181,17 @@ const puedePublicar = ref(false);
 const puedeVerEstadisticas = ref(false);
 const filtroActivo = ref('todos');
 
-const listaFiltros = [
+const FILTROS = [
   { id: 'todos', nombre: 'Todos' },
   { id: 'area', nombre: 'Mi Área' },
   { id: 'globales', nombre: 'Globales' },
   { id: 'urgentes', nombre: 'Urgentes' }
 ];
+// "Publicados por mí" (sesión 16): solo para quien puede publicar. Ahí salen también los avisos
+// dirigidos a otro departamento o persona, que en "Todos" no aparecen.
+const listaFiltros = computed(() =>
+  puedePublicar.value ? [...FILTROS, { id: 'mios', nombre: 'Publicados por mí' }] : FILTROS
+);
 
 // Avisos por página. Se pide uno de más para saber si hay otra página sin
 // hacer una consulta extra para contar (el servidor acepta hasta 50).
@@ -196,6 +220,8 @@ const mapearAviso = (a) => {
     categoriaClase: a.urgente ? 'badge-urgente' : esDeMiArea ? 'badge-tyc' : 'badge-gerente',
     urgente: a.urgente,
     esDeMiArea,
+    // Para "Publicados por mí"
+    destino: a.usuario_destino || a.departamento_destino || 'toda la empresa',
     tieneAdjunto: a.tiene_adjunto,
     leido: a.leido,
     confirmando: false
@@ -548,6 +574,12 @@ onMounted(() => {
   font-weight: 700;
   color: var(--text-primary, #0f172a);
   line-height: 1.4;
+}
+
+.aviso-destino {
+  margin: -0.35rem 0 0;
+  font-size: 0.8rem;
+  color: var(--text-secondary, #64748b);
 }
 
 /* Botones dentro de la Card */
