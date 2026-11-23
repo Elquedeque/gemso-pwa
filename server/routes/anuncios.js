@@ -1,5 +1,6 @@
 // Rutas de Avisos / Comunicados (todas piden sesión iniciada)
-//   GET  /api/anuncios            Lista de avisos que el usuario puede ver (?limite=N y ?destacados=1 opcionales)
+//   GET  /api/anuncios            Lista de avisos que el usuario puede ver. Opcionales: ?limite=N, ?destacados=1,
+//                                 ?filtro=area|globales|urgentes y ?antes=<id_anu> (siguiente página)
 //   GET  /api/anuncios/destinatarios  Personas a las que se puede dirigir un aviso (solo con permiso publicar_avisos)
 //   GET  /api/anuncios/notificaciones          Campana: avisos sin abrir y cuántos son nuevos
 //   POST /api/anuncios/notificaciones/leidas   Campana: "Marcar todas como leídas"
@@ -42,6 +43,9 @@ const idOpcional = (valor) => {
 // Si agrego otra categoria en el formulario, acordarme de ponerla aqui tambien
 const CATEGORIAS_AVISO = ['Corporativo', 'Autofest 2026', 'Talento y Cultura', 'Sistemas / TI', 'General'];
 
+// Filtros de la lista (los chips de MisAnunciosView.vue). "area" = para mi departamento o para mí.
+const FILTROS_LISTA = ['todos', 'area', 'globales', 'urgentes'];
+
 // Regla de Visibilidad (la usan la lista, el detalle y la confirmación de lectura)
 // Un usuario puede ver:
 //   - Los avisos generales (sin departamento ni usuario destino)
@@ -81,6 +85,22 @@ router.get('/', autenticar, async (req, res) => {
   }
   const soloDestacados = req.query.destacados === '1';
 
+  // Paginación por cursor: ?antes=<id_anu> regresa los avisos publicados antes de ese.
+  // Se usa el id y no la fecha porque JavaScript recorta los microsegundos de PostgreSQL
+  // y la comparación fallaría. Si un aviso nuevo se publica mientras alguien pagina, no
+  // se recorren las páginas (con OFFSET se repetiría el último aviso de la página anterior).
+  const antes = idOpcional(req.query.antes);
+  if (Number.isNaN(antes)) {
+    return res.status(400).json({ error: 'El cursor de paginación no es válido' });
+  }
+
+  // Filtros de "Mis avisos". Van en el servidor para que cada página tenga avisos
+  // del filtro elegido y no se quede vacía cuando los de esa categoría son pocos.
+  const filtro = req.query.filtro ?? 'todos';
+  if (!FILTROS_LISTA.includes(filtro)) {
+    return res.status(400).json({ error: 'Filtro no válido' });
+  }
+
   try {
     const query = `
       SELECT
@@ -103,11 +123,20 @@ router.get('/', autenticar, async (req, res) => {
       LEFT JOIN departamentos d ON a.id_dep_destino = d.id_dep
       WHERE ${FILTRO_VISIBLES}
         AND (NOT $4 OR a.destacado)
-      ORDER BY a.fecha_creacion DESC
+        AND ($5::int IS NULL
+             OR (a.fecha_creacion, a.id_anu) < (SELECT p.fecha_creacion, p.id_anu FROM anuncios p WHERE p.id_anu = $5))
+        AND CASE $6::text
+              WHEN 'area'     THEN (a.id_dep_destino IS NOT NULL OR a.id_usu_destino IS NOT NULL)
+              WHEN 'globales' THEN (a.id_dep_destino IS NULL AND a.id_usu_destino IS NULL)
+              WHEN 'urgentes' THEN a.urgente
+              ELSE TRUE
+            END
+      ORDER BY a.fecha_creacion DESC, a.id_anu DESC
       LIMIT $3;
     `;
-    // Si limite es null, PostgreSQL lo toma como "sin límite"
-    const result = await db.query(query, [idUsu, id_departamento, limite, soloDestacados]);
+    // Si limite es null, PostgreSQL lo toma como "sin límite".
+    // El id_anu desempata dos avisos con la misma fecha para que el cursor no se salte ninguno.
+    const result = await db.query(query, [idUsu, id_departamento, limite, soloDestacados, antes, filtro]);
     res.json(result.rows);
   } catch (error) {
     console.error('Error al obtener anuncios:', error);

@@ -48,7 +48,7 @@
           :key="filtro.id" 
           class="filter-chip" 
           :class="{ active: filtroActivo === filtro.id }"
-          @click="filtroActivo = filtro.id"
+          @click="cambiarFiltro(filtro.id)"
         >
           {{ filtro.nombre }}
         </button>
@@ -68,7 +68,7 @@
       <!-- Grid Responsivo de Avisos -->
       <section v-else class="avisos-grid">
         <article 
-          v-for="aviso in avisosFiltrados" 
+          v-for="aviso in listaAvisos"
           :key="aviso.id" 
           class="aviso-card"
           :class="{ 'card-read': aviso.leido }"
@@ -118,8 +118,20 @@
         </article>
       </section>
 
+      <!-- Paginación: siguiente bloque de avisos -->
+      <div v-if="!cargando && !errorCarga && (hayMas || errorMas)" class="cargar-mas">
+        <p v-if="errorMas" class="error-mas" role="alert">{{ errorMas }}</p>
+        <button
+          class="btn-action btn-outline btn-cargar-mas"
+          :disabled="cargandoMas"
+          @click="cargarMas"
+        >
+          {{ cargandoMas ? 'Cargando...' : errorMas ? 'Reintentar' : 'Ver más avisos' }}
+        </button>
+      </div>
+
       <!-- Estado Vacío -->
-      <div v-if="!cargando && !errorCarga && avisosFiltrados.length === 0" class="empty-state">
+      <div v-if="!cargando && !errorCarga && listaAvisos.length === 0" class="empty-state">
         <svg class="empty-icon" viewBox="0 0 24 24" fill="currentColor">
           <path d="M18 11v2h4v-2h-4zm-2 6.61c.96.71 2.21 1.65 3.2 2.39.4-.53.8-1.07 1.2-1.6-.99-.74-2.24-1.68-3.2-2.4-.4.54-.8 1.08-1.2 1.61zM20.4 5.6c-.4-.53-.8-1.07-1.2-1.6-.99.74-2.24 1.68-3.2 2.4.4.53.8 1.07 1.2 1.6.96-.72 2.21-1.65 3.2-2.4zM4 9c-1.1 0-2 .9-2 2v2c0 1.1.9 2 2 2h1v4h2v-4h1l5 3V6L8 9H4zm11.5 3c0-1.33-.58-2.53-1.5-3.35v6.69c.92-.81 1.5-2.01 1.5-3.34z"/>
         </svg>
@@ -135,7 +147,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { apiFetch } from '../api';
 import AppHeader from '../components/AppHeader.vue';
@@ -157,10 +169,21 @@ const listaFiltros = [
   { id: 'urgentes', nombre: 'Urgentes' }
 ];
 
+// Avisos por página. Se pide uno de más para saber si hay otra página sin
+// hacer una consulta extra para contar (el servidor acepta hasta 50).
+const TAMANO_PAGINA = 20;
+
 const listaAvisos = ref([]);
-const cargando = ref(false);
+const cargando = ref(false);      // primera página (o al cambiar de filtro)
 const errorCarga = ref('');
+const cargandoMas = ref(false);   // botón "Ver más avisos"
+const errorMas = ref('');
+const hayMas = ref(false);
 let usuario = null;
+
+// Cada carga nueva aumenta este número; si llega la respuesta de una carga anterior
+// (p. ej. el usuario cambió de filtro antes de que terminara), se ignora.
+let numeroCarga = 0;
 
 // Convierte una fila de la API al formato que usan las tarjetas
 const mapearAviso = (a) => {
@@ -179,33 +202,83 @@ const mapearAviso = (a) => {
   };
 };
 
+// Pide una página al servidor. Sin "antes" es la primera; con "antes" (id del último
+// aviso mostrado) es la siguiente. El filtro lo aplica el servidor.
+const pedirPagina = async (antes) => {
+  const params = new URLSearchParams({ limite: TAMANO_PAGINA + 1 });
+  if (filtroActivo.value !== 'todos') params.set('filtro', filtroActivo.value);
+  if (antes) params.set('antes', antes);
+
+  const res = await apiFetch(`/api/anuncios?${params}`);
+  const data = await res.json();
+  if (!res.ok) {
+    // Marcado para mostrar el mensaje del servidor tal cual (ver mensajeDeError)
+    const error = new Error(data.error || 'Error al consultar los avisos');
+    error.delServidor = true;
+    throw error;
+  }
+
+  return {
+    avisos: data.slice(0, TAMANO_PAGINA).map(mapearAviso),
+    hayMas: data.length > TAMANO_PAGINA
+  };
+};
+
+// Cualquier otro error (sin red, servidor apagado, respuesta que no es JSON) se
+// muestra con un mensaje entendible en lugar del texto técnico del navegador.
+const mensajeDeError = (error) =>
+  error.delServidor ? error.message : 'No se pudo conectar con el servidor';
+
+// Primera página: al entrar, al cambiar de filtro y con "Reintentar"
 const cargarAvisos = async () => {
+  const carga = ++numeroCarga;
   cargando.value = true;
+  cargandoMas.value = false;
   errorCarga.value = '';
+  errorMas.value = '';
   try {
-    const res = await apiFetch('/api/anuncios');
-    const data = await res.json();
-    if (!res.ok) {
-      errorCarga.value = data.error || 'Error al consultar los avisos';
-      return;
-    }
-    listaAvisos.value = data.map(mapearAviso);
+    const pagina = await pedirPagina();
+    if (carga !== numeroCarga) return;
+    listaAvisos.value = pagina.avisos;
+    hayMas.value = pagina.hayMas;
   } catch (error) {
+    if (carga !== numeroCarga) return;
     console.error('Error al cargar avisos:', error);
-    errorCarga.value = 'No se pudo conectar con el servidor';
+    errorCarga.value = mensajeDeError(error);
   } finally {
-    cargando.value = false;
+    if (carga === numeroCarga) cargando.value = false;
   }
 };
 
-const avisosFiltrados = computed(() => {
-  switch (filtroActivo.value) {
-    case 'area': return listaAvisos.value.filter(a => a.esDeMiArea);
-    case 'globales': return listaAvisos.value.filter(a => !a.esDeMiArea);
-    case 'urgentes': return listaAvisos.value.filter(a => a.urgente);
-    default: return listaAvisos.value;
+// Siguiente página: se agrega al final de la lista
+const cargarMas = async () => {
+  const ultimo = listaAvisos.value[listaAvisos.value.length - 1];
+  if (!ultimo || cargandoMas.value) return;
+
+  const carga = numeroCarga;
+  cargandoMas.value = true;
+  errorMas.value = '';
+  try {
+    const pagina = await pedirPagina(ultimo.id);
+    if (carga !== numeroCarga) return;
+    listaAvisos.value.push(...pagina.avisos);
+    hayMas.value = pagina.hayMas;
+  } catch (error) {
+    if (carga !== numeroCarga) return;
+    console.error('Error al cargar más avisos:', error);
+    errorMas.value = mensajeDeError(error);
+  } finally {
+    if (carga === numeroCarga) cargandoMas.value = false;
   }
-});
+};
+
+const cambiarFiltro = (id) => {
+  if (id === filtroActivo.value) return;
+  filtroActivo.value = id;
+  listaAvisos.value = [];
+  hayMas.value = false;
+  cargarAvisos();
+};
 
 const confirmarLectura = async (aviso) => {
   if (aviso.leido || aviso.confirmando) return;
@@ -521,6 +594,32 @@ onMounted(() => {
 .check-icon {
   width: 16px;
   height: 16px;
+}
+
+/* Paginación */
+.cargar-mas {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.btn-cargar-mas {
+  flex: none;
+  min-width: 200px;
+  padding: 0.7rem 1.5rem;
+  border: 1px solid var(--border-color, #cbd5e1);
+}
+
+.btn-cargar-mas:disabled {
+  cursor: wait;
+  opacity: 0.7;
+}
+
+.error-mas {
+  margin: 0;
+  font-size: 0.85rem;
+  color: #ef4444;
 }
 
 /* Estado Vacío */
